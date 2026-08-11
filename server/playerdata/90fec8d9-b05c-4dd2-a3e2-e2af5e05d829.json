@@ -1,0 +1,13 @@
+{
+  "player_id": "90fec8d9-b05c-4dd2-a3e2-e2af5e05d829",
+  "username": "test",
+  "created_at": "2026-08-11T20:14:48.980336+00:00",
+  "data": {
+    "position": {
+      "x": -215.2824978336203,
+      "y": -55.32249783362056
+    },
+    "animation": "idle",
+    "character": "assets/characters/basicrobot"
+  }
+}

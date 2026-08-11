@@ -1,0 +1,38 @@
+* {
+    image-rendering: pixelated;
+}
+
+body {
+    background: #0d1117;
+}
+
+#viewport {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100vw;
+    height: 100vh;
+    overflow: hidden;
+}
+
+#world {
+    position: absolute;
+    top: 0;
+    left: 0;
+    will-change: transform;
+}
+
+#coords {
+    position: fixed;
+    top: 8px;
+    left: 8px;
+    z-index: 10;
+    padding: 6px 10px;
+    background: rgba(13, 17, 23, 0.85);
+    border: 1px solid #30363d;
+    border-radius: 4px;
+    color: #e6edf3;
+    font-family: monospace;
+    font-size: 14px;
+    pointer-events: none;
+}

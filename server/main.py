@@ -18,7 +18,7 @@ PLAYERLOGIN_PATH = os.path.join(BASE_DIR, "playerlogin.json")
 GAME_DIR = os.path.join(BASE_DIR, "game")
 TEMPLATES_DIR = os.path.join(BASE_DIR, "templates")
 WORLD_SEED_LENGTH = 24
-MAX_ACTIVE_CONNECTIONS_PER_ACCOUNT = 2
+MAX_ACTIVE_CONNECTIONS_PER_ACCOUNT = 1
 CONNECTED_CLIENTS = set()
 PLAYER_CONNECTIONS = {}
 
@@ -156,14 +156,9 @@ def unregister_player_connection(player_id, websocket):
         PLAYER_CONNECTIONS.pop(player_id, None)
 
 
-def collect_players_snapshot():
+def collect_active_players_snapshot():
     players = {}
-    if not os.path.exists(PLAYERDATA_DIR):
-        return players
-    for filename in os.listdir(PLAYERDATA_DIR):
-        if not filename.endswith(".json"):
-            continue
-        player_id = filename[:-5]
+    for player_id in PLAYER_CONNECTIONS:
         player = load_player(player_id)
         if player is not None:
             players[player_id] = build_player_state(player_id, player)
@@ -174,7 +169,7 @@ async def broadcast_world_state():
     payload = {
         "type": "state",
         "seed": get_world_seed(),
-        "players": collect_players_snapshot(),
+        "players": collect_active_players_snapshot(),
     }
     for websocket in list(CONNECTED_CLIENTS):
         try:
@@ -207,7 +202,7 @@ def login():
         return render_template("login.html", error="Invalid username or password.")
 
     if len(active_player_connections(user["player_id"])) >= MAX_ACTIVE_CONNECTIONS_PER_ACCOUNT:
-        return render_template("login.html", error="This account already has the maximum number of active sessions.")
+        return render_template("login.html", error="This account is already logged in from another session.")
 
     client_ip = get_client_ip()
     user["last_ip"] = client_ip
@@ -279,6 +274,15 @@ def ws_token():
     return jsonify({"token": session["ws_token"]})
 
 
+@app.route("/api/player-data")
+@login_required
+def player_data():
+    player = load_player(session["player_id"])
+    if player is None:
+        return jsonify({"data": {}})
+    return jsonify({"data": player.get("data", {})})
+
+
 @app.route("/game/")
 @app.route("/game/<path:filename>")
 @login_required
@@ -320,7 +324,7 @@ async def networkloop(websocket):
             "type": "welcome",
             "seed": get_world_seed(),
             "player_id": player_id,
-            "players": collect_players_snapshot(),
+            "players": collect_active_players_snapshot(),
         }
         await websocket.send(json.dumps(welcome))
 
@@ -359,7 +363,7 @@ async def networkloop(websocket):
                 await websocket.send(json.dumps({"ok": True, "type": "sync"}))
             elif operation == "get":
                 player = load_player(player_id)
-                await websocket.send(json.dumps({"data": player.get("data", {}), "seed": get_world_seed()}))
+                await websocket.send(json.dumps({"data": player.get("data", {}), "seed": get_world_seed(), "players": collect_active_players_snapshot()}))
             else:
                 await websocket.send(json.dumps({"error": "unknown_operation"}))
     finally:

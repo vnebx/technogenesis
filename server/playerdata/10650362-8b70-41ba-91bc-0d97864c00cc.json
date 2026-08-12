@@ -4,10 +4,10 @@
   "created_at": "2026-08-11T22:03:13.714818+00:00",
   "data": {
     "position": {
-      "x": -179.16835062185285,
-      "y": 16.02673144547569
+      "x": -107.71156660969675,
+      "y": 153.66729392648483
     },
     "animation": "idle",
-    "character": "assets/characters/basicrobot"
+    "character": "assets/characters/basicrobot2"
   }
 }

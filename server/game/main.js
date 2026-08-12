@@ -1,9 +1,12 @@
+import { getBaseTileType } from "./mapgen/lake.js";
+import { getTreeTile } from "./mapgen/tree.js";
+
 const tileWidth = 60;
 const lakeWidth = 4;
 const lakeHeight = 3;
 const regionSize = 32;
-const seedLength = 24;
-const characterPath = "assets/characters/basicrobot";
+const treeRegionSize = 16;
+let characterPath = "assets/characters/basicrobot";
 const directions = ["idle", "forward", "backward", "left", "right"];
 const moveSpeed = 120;
 const animInterval = 180;
@@ -12,7 +15,6 @@ const keys = {};
 const imageCache = {};
 const frameCounts = {};
 const tileElements = new Map();
-const lakeCache = new Map();
 const remotePlayers = new Map();
 
 let seed = [];
@@ -62,86 +64,37 @@ async function preloadSprites() {
     }
 }
 
-function createRng(values) {
-    let state = values.reduce((acc, value, index) => {
-        return (acc ^ (value + index * 31)) >>> 0;
-    }, 0x9e3779b9);
-
-    return () => {
-        state = (Math.imul(state ^ (state >>> 15), 0x2b2bae35) ^ Math.imul(state ^ (state >>> 7), 0x1b873593)) >>> 0;
-        return state / 4294967296;
-    };
-}
-
-function regionSeed(rx, ry) {
-    return seed.map((value, index) => {
-        return (value ^ ((rx * 73856093 + ry * 19349663 + index * 83492791) >>> 0)) & 255;
-    });
-}
-
-function getLakeOrigin(rx, ry) {
-    const key = `${rx},${ry}`;
-    if (lakeCache.has(key)) {
-        return lakeCache.get(key);
+async function setCharacterPath(newPath) {
+    if (!newPath || newPath === characterPath) {
+        return;
     }
-
-    const rng = createRng(regionSeed(rx, ry));
-    const placeIndex = Math.floor(rng() * seedLength);
-
-    if (seed[placeIndex] % 2 !== 0) {
-        lakeCache.set(key, null);
-        return null;
+    characterPath = newPath;
+    await discoverFrames();
+    await preloadSprites();
+    animFrame = 0;
+    animTimer = 0;
+    if (playerEl) {
+        updatePlayerSprite();
     }
-
-    const baseCol = rx * regionSize;
-    const baseRow = ry * regionSize;
-    const col = baseCol + Math.floor(rng() * (regionSize - lakeWidth + 1));
-    const row = baseRow + Math.floor(rng() * (regionSize - lakeHeight + 1));
-    const origin = { col, row };
-    lakeCache.set(key, origin);
-    return origin;
-}
-
-function getTileType(col, row) {
-    const rx = Math.floor(col / regionSize);
-    const ry = Math.floor(row / regionSize);
-
-    for (let dy = -1; dy <= 1; dy++) {
-        for (let dx = -1; dx <= 1; dx++) {
-            const lake = getLakeOrigin(rx + dx, ry + dy);
-            if (!lake) {
-                continue;
-            }
-            if (
-                col >= lake.col &&
-                col < lake.col + lakeWidth &&
-                row >= lake.row &&
-                row < lake.row + lakeHeight
-            ) {
-                return "water";
-            }
-        }
-    }
-
-    return "grass";
 }
 
 function tileKey(col, row) {
     return `${col},${row}`;
 }
 
-function createTileElement(col, row, type) {
-    const tile = document.createElement("div");
+function createTileElement(col, row, type, zIndex = "0") {
+    const tile = document.createElement("img");
     tile.className = "tile";
+    tile.src = `assets/tiles/${type}.png`;
     tile.style.width = `${tileWidth}px`;
     tile.style.height = `${tileWidth}px`;
     tile.style.position = "absolute";
     tile.style.top = `${row * tileWidth}px`;
     tile.style.left = `${col * tileWidth}px`;
-    tile.style.backgroundImage = `url(assets/tiles/${type}.png)`;
-    tile.style.backgroundSize = "cover";
-    tile.style.backgroundPosition = "center";
-    tile.style.backgroundRepeat = "no-repeat";
+    tile.style.objectFit = "cover";
+    tile.style.backgroundColor = "transparent";
+    tile.style.zIndex = zIndex;
+    tile.style.pointerEvents = "none";
     worldEl.appendChild(tile);
     return tile;
 }
@@ -151,8 +104,18 @@ function ensureTile(col, row) {
     if (tileElements.has(key)) {
         return;
     }
-    const type = getTileType(col, row);
-    tileElements.set(key, createTileElement(col, row, type));
+
+    const baseType = getBaseTileType(col, row, seed, regionSize, lakeWidth, lakeHeight);
+    const baseTile = createTileElement(col, row, baseType, "0");
+    const treeType = getTreeTile(col, row, seed, regionSize, treeRegionSize);
+    if (!treeType) {
+        tileElements.set(key, { base: baseTile });
+        return;
+    }
+
+    const overlayZ = treeType === "oak_tree_leaves" ? "3" : "1";
+    const overlayTile = createTileElement(col, row, treeType, overlayZ);
+    tileElements.set(key, { base: baseTile, overlay: overlayTile });
 }
 
 function updateVisibleTiles() {
@@ -170,9 +133,16 @@ function updateVisibleTiles() {
         }
     }
 
-    for (const [key, element] of tileElements) {
+    for (const [key, entry] of tileElements) {
         if (!needed.has(key)) {
-            element.remove();
+            if (entry.base) {
+                entry.base.remove();
+            } else {
+                entry.remove();
+            }
+            if (entry.overlay) {
+                entry.overlay.remove();
+            }
             tileElements.delete(key);
         }
     }
@@ -193,7 +163,7 @@ function createPlayer() {
     playerEl.style.backgroundSize = "contain";
     playerEl.style.backgroundPosition = "center";
     playerEl.style.backgroundRepeat = "no-repeat";
-    playerEl.style.zIndex = "1";
+    playerEl.style.zIndex = "2";
     worldEl.appendChild(playerEl);
     updatePlayerSprite();
 }
@@ -330,13 +300,17 @@ function sendPlayerUpdate() {
     lastSentSnapshot = payload;
 }
 
-function handleServerMessage(event) {
+async function handleServerMessage(event) {
     const message = JSON.parse(event.data);
 
     if (message.type === "welcome") {
         localPlayerId = message.player_id;
         seed = Array.isArray(message.seed) ? message.seed : [];
         if (message.players) {
+            const localData = message.players[localPlayerId];
+            if (localData && localData.character) {
+                await setCharacterPath(localData.character);
+            }
             updateRemotePlayers(message.players);
         }
         if (seed.length) {
@@ -353,9 +327,25 @@ function handleServerMessage(event) {
             }
         }
         if (message.players) {
+            const localData = message.players[localPlayerId];
+            if (localData && localData.character) {
+                await setCharacterPath(localData.character);
+            }
             updateRemotePlayers(message.players);
         }
     }
+}
+
+function fetchLocalPlayerData() {
+    return fetch("/api/player-data")
+        .then((response) => response.json())
+        .then((data) => {
+            const localData = data.data || {};
+            if (localData.character) {
+                return setCharacterPath(localData.character);
+            }
+        })
+        .catch(() => {});
 }
 
 function connectToServer() {
@@ -370,14 +360,14 @@ function connectToServer() {
                     ws.send(JSON.stringify({ token: data.token }));
                 };
 
-                ws.onmessage = (event) => {
+                ws.onmessage = async (event) => {
                     const message = JSON.parse(event.data);
                     if (message.type === "welcome") {
-                        handleServerMessage(event);
+                        await handleServerMessage(event);
                         resolve();
                         return;
                     }
-                    handleServerMessage(event);
+                    await handleServerMessage(event);
                 };
 
                 ws.onerror = () => reject(new Error("WebSocket connection failed."));
@@ -450,6 +440,7 @@ async function init() {
     worldEl.style.left = "0";
     viewportEl.appendChild(worldEl);
 
+    await fetchLocalPlayerData();
     await connectToServer();
     await discoverFrames();
     await preloadSprites();

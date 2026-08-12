@@ -86,12 +86,12 @@ function createTileElement(col, row, type, zIndex = "0") {
     const tile = document.createElement("img");
     tile.className = "tile";
     tile.src = `assets/tiles/${type}.png`;
+    tile.style.display = "block";
     tile.style.width = `${tileWidth}px`;
     tile.style.height = `${tileWidth}px`;
     tile.style.position = "absolute";
-    tile.style.top = `${row * tileWidth}px`;
-    tile.style.left = `${col * tileWidth}px`;
-    tile.style.objectFit = "cover";
+    tile.style.top = `${Math.round(row * tileWidth)}px`;
+    tile.style.left = `${Math.round(col * tileWidth)}px`;
     tile.style.backgroundColor = "transparent";
     tile.style.zIndex = zIndex;
     tile.style.pointerEvents = "none";
@@ -151,7 +151,9 @@ function updateVisibleTiles() {
 function updateCamera() {
     cameraX = playerWorldX + tileWidth / 2 - window.innerWidth / 2;
     cameraY = playerWorldY + tileWidth / 2 - window.innerHeight / 2;
-    worldEl.style.transform = `translate(${-cameraX}px, ${-cameraY}px)`;
+    const worldX = Math.round(cameraX);
+    const worldY = Math.round(cameraY);
+    worldEl.style.transform = `translate(${-worldX}px, ${-worldY}px)`;
     updateVisibleTiles();
 }
 
@@ -222,8 +224,8 @@ function nextAnimFrame(name, current) {
 function updatePlayerSprite() {
     const src = `${characterPath}/${direction}${animFrame}.png`;
     playerEl.style.backgroundImage = `url(${src})`;
-    playerEl.style.left = `${playerWorldX}px`;
-    playerEl.style.top = `${playerWorldY}px`;
+    playerEl.style.left = `${Math.round(playerWorldX)}px`;
+    playerEl.style.top = `${Math.round(playerWorldY)}px`;
 }
 
 function normalizeRemoteState(entity) {

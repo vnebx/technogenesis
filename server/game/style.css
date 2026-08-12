@@ -20,6 +20,22 @@ body {
     top: 0;
     left: 0;
     will-change: transform;
+    background-color: #0d1117;
+}
+
+#viewport {
+    background: #0d1117;
+}
+
+.tile {
+    image-rendering: pixelated;
+    -moz-image-rendering: crisp-edges;
+    -webkit-image-rendering: pixelated;
+    background-color: transparent;
+}
+
+#viewport, #world {
+    will-change: transform;
 }
 
 #coords {

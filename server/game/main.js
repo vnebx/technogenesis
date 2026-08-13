@@ -16,15 +16,13 @@ const INVENTORY_SIZE = INVENTORY_COLS * INVENTORY_ROWS;
 
 let playerInventory = Array(INVENTORY_SIZE).fill(null);
 let inventoryVisible = false;
-let draggingIndex = null;
 let inventoryEl = null;
-let draggedItemEl = null;
+let cursorItem = null;
+let cursorItemEl = null;
 const slotElements = [];
 
-let dragOffsetX = 0;
-let dragOffsetY = 0;
-
 const ITEM_IMAGE_PATH = "assets/ui/items/";
+const MAX_STACK = 64;
 
 const moveSpeed = 120;
 const animInterval = 180;
@@ -203,33 +201,130 @@ function getItemTexturePath(itemId) {
     return `${ITEM_IMAGE_PATH}${itemId}.png`;
 }
 
+function createItemSlot(itemId, count = 1) {
+    return { id: itemId, count: count };
+}
+
+function normalizeInventorySlot(slot) {
+    if (!slot) return null;
+    if (typeof slot === "string") return createItemSlot(slot, 1);
+    if (typeof slot === "object") {
+        const count = Math.max(1, Math.min(MAX_STACK, Number(slot.count) || 1));
+        return createItemSlot(slot.id, count);
+    }
+    return null;
+}
+
+function addItem(itemId, count = 1) {
+    let remaining = count;
+    for (let i = 0; i < INVENTORY_SIZE && remaining > 0; i++) {
+        const slot = playerInventory[i];
+        if (slot && slot.id === itemId && slot.count < MAX_STACK) {
+            const added = Math.min(MAX_STACK - slot.count, remaining);
+            slot.count += added;
+            remaining -= added;
+        }
+    }
+    for (let i = 0; i < INVENTORY_SIZE && remaining > 0; i++) {
+        if (!playerInventory[i]) {
+            const added = Math.min(MAX_STACK, remaining);
+            playerInventory[i] = createItemSlot(itemId, added);
+            remaining -= added;
+        }
+    }
+    renderInventory();
+    sendPlayerUpdate();
+    return remaining;
+}
+
+function grabFromSlot(index) {
+    if (cursorItem) return;
+    const slot = playerInventory[index];
+    if (!slot) return;
+
+    cursorItem = { id: slot.id, count: slot.count };
+    playerInventory[index] = null;
+    updateCursorItem();
+    renderInventory();
+    sendPlayerUpdate();
+}
+
+function grabHalfFromSlot(index) {
+    if (cursorItem) return;
+    const slot = playerInventory[index];
+    if (!slot) return;
+
+    const grabbed = Math.ceil(slot.count / 2);
+    const remaining = slot.count - grabbed;
+    cursorItem = { id: slot.id, count: grabbed };
+    if (remaining > 0) {
+        slot.count = remaining;
+    } else {
+        playerInventory[index] = null;
+    }
+    updateCursorItem();
+    renderInventory();
+    sendPlayerUpdate();
+}
+
+function placeOnSlot(index) {
+    if (!cursorItem) return;
+    const slot = playerInventory[index];
+    if (!slot) {
+        playerInventory[index] = cursorItem;
+        cursorItem = null;
+    } else if (slot.id === cursorItem.id) {
+        const space = MAX_STACK - slot.count;
+        if (space > 0) {
+            const moved = Math.min(space, cursorItem.count);
+            slot.count += moved;
+            cursorItem.count -= moved;
+            if (cursorItem.count <= 0) cursorItem = null;
+        }
+    } else {
+        const temp = playerInventory[index];
+        playerInventory[index] = cursorItem;
+        cursorItem = temp;
+    }
+    updateCursorItem();
+    renderInventory();
+    sendPlayerUpdate();
+}
+
+function updateCursorItem() {
+    if (!cursorItemEl) return;
+    if (cursorItem) {
+        const img = cursorItemEl.querySelector("img");
+        const count = cursorItemEl.querySelector(".count");
+        img.src = getItemTexturePath(cursorItem.id);
+        img.alt = cursorItem.id;
+        count.textContent = cursorItem.count > 1 ? cursorItem.count : "";
+        cursorItemEl.style.display = "block";
+    } else {
+        cursorItemEl.style.display = "none";
+    }
+}
+
 function renderInventory() {
     if (!inventoryEl) return;
     slotElements.forEach((el, idx) => {
         el.innerHTML = "";
 
-        if (idx === draggingIndex) return;
-
         const item = playerInventory[idx];
         if (item) {
             const itemImg = document.createElement("img");
-            itemImg.src = getItemTexturePath(item);
-            itemImg.alt = item;
+            itemImg.src = getItemTexturePath(item.id);
+            itemImg.alt = item.id;
             itemImg.draggable = false;
             el.appendChild(itemImg);
+            if (item.count > 1) {
+                const countEl = document.createElement("span");
+                countEl.className = "count";
+                countEl.textContent = item.count;
+                el.appendChild(countEl);
+            }
         }
     });
-}
-
-function swapInventoryItems(a, b) {
-    if (a < 0 || a >= INVENTORY_SIZE || b < 0 || b >= INVENTORY_SIZE) return;
-
-    if (a !== b) {
-        const temp = playerInventory[a];
-        playerInventory[a] = playerInventory[b];
-        playerInventory[b] = temp;
-        sendPlayerUpdate();
-    }
 }
 
 function createInventoryUI() {
@@ -240,10 +335,15 @@ function createInventoryUI() {
     inventoryEl.style.gridTemplateColumns = `repeat(${INVENTORY_COLS}, calc(18px * ${INVENTORY_SCALE}))`;
     inventoryEl.style.display = inventoryVisible ? "grid" : "none";
 
-    draggedItemEl = document.createElement("img");
-    draggedItemEl.id = "dragged-item";
-    draggedItemEl.draggable = false;
-    document.body.appendChild(draggedItemEl);
+    cursorItemEl = document.createElement("div");
+    cursorItemEl.id = "cursor-item";
+    cursorItemEl.style.display = "none";
+    const cursorImg = document.createElement("img");
+    const cursorCount = document.createElement("span");
+    cursorCount.className = "count";
+    cursorItemEl.appendChild(cursorImg);
+    cursorItemEl.appendChild(cursorCount);
+    document.body.appendChild(cursorItemEl);
 
     for (let i = 0; i < INVENTORY_SIZE; i++) {
         const slot = document.createElement("div");
@@ -251,26 +351,20 @@ function createInventoryUI() {
         slot.dataset.index = i.toString();
 
         slot.addEventListener("mousedown", (e) => {
-            if (e.button !== 0) return;
             e.preventDefault();
-
             const index = parseInt(slot.dataset.index, 10);
-            const item = playerInventory[index];
-            if (item) {
-                draggingIndex = index;
-                draggedItemEl.src = getItemTexturePath(item);
-
-                const imgInsideSlot = slot.querySelector("img");
-                const targetRect = imgInsideSlot ? imgInsideSlot.getBoundingClientRect() : slot.getBoundingClientRect();
-
-                dragOffsetX = e.clientX - targetRect.left;
-                dragOffsetY = e.clientY - targetRect.top;
-
-                draggedItemEl.style.left = `${e.clientX - dragOffsetX}px`;
-                draggedItemEl.style.top = `${e.clientY - dragOffsetY}px`;
-                draggedItemEl.style.display = "block";
-
-                renderInventory();
+            if (e.button === 0) {
+                if (cursorItem) {
+                    placeOnSlot(index);
+                } else {
+                    grabFromSlot(index);
+                }
+            } else if (e.button === 2) {
+                grabHalfFromSlot(index);
+            }
+            if (cursorItemEl) {
+                cursorItemEl.style.left = `${e.clientX}px`;
+                cursorItemEl.style.top = `${e.clientY}px`;
             }
         });
 
@@ -279,27 +373,9 @@ function createInventoryUI() {
     }
 
     document.addEventListener("mousemove", (e) => {
-        if (draggingIndex !== null && draggedItemEl) {
-            draggedItemEl.style.left = `${e.clientX - dragOffsetX}px`;
-            draggedItemEl.style.top = `${e.clientY - dragOffsetY}px`;
-        }
-    });
-
-    document.addEventListener("mouseup", (e) => {
-        if (draggingIndex !== null) {
-            const targetSlot = e.target.closest(".slot");
-
-            if (targetSlot) {
-                const targetIdx = parseInt(targetSlot.dataset.index, 10);
-                if (!isNaN(targetIdx)) {
-                    swapInventoryItems(draggingIndex, targetIdx);
-                }
-            }
-
-            draggingIndex = null;
-
-            if (draggedItemEl) draggedItemEl.style.display = "none";
-            renderInventory();
+        if (cursorItemEl) {
+            cursorItemEl.style.left = `${e.clientX}px`;
+            cursorItemEl.style.top = `${e.clientY}px`;
         }
     });
 
@@ -393,7 +469,7 @@ function getPlayerSnapshot() {
     const spriteName = direction === "idle" ? `idle${lastDirection}` : direction;
     return {
         character: characterPath,
-        inventory: playerInventory.slice(),
+        inventory: playerInventory.map((slot) => (slot ? { id: slot.id, count: slot.count } : null)),
         animation: spriteName,
     };
 }
@@ -447,12 +523,9 @@ function fetchLocalPlayerData() {
         .then((data) => {
             const localData = data.data || {};
             if (Array.isArray(localData.inventory)) {
-                playerInventory = localData.inventory.slice(0, INVENTORY_SIZE);
-                if (playerInventory.length < INVENTORY_SIZE) {
-                    const fillCount = INVENTORY_SIZE - playerInventory.length;
-                    for (let i = 0; i < fillCount; i++) {
-                        playerInventory.push(null);
-                    }
+                playerInventory = localData.inventory.slice(0, INVENTORY_SIZE).map(normalizeInventorySlot);
+                while (playerInventory.length < INVENTORY_SIZE) {
+                    playerInventory.push(null);
                 }
             } else {
                 playerInventory = Array(INVENTORY_SIZE).fill(null);

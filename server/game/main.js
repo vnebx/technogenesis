@@ -8,6 +8,24 @@ const regionSize = 32;
 const treeRegionSize = 16;
 let characterPath = "assets/characters/basicrobot";
 const directions = ["idle", "forward", "backward", "left", "right", "idleforward", "idlebackward", "idleleft", "idleright"];
+
+const INVENTORY_SCALE = 3;
+const INVENTORY_COLS = 4;
+const INVENTORY_ROWS = 6;
+const INVENTORY_SIZE = INVENTORY_COLS * INVENTORY_ROWS;
+
+let playerInventory = Array(INVENTORY_SIZE).fill(null);
+let inventoryVisible = false;
+let draggingIndex = null;
+let inventoryEl = null;
+let draggedItemEl = null;
+const slotElements = [];
+
+let dragOffsetX = 0;
+let dragOffsetY = 0;
+
+const ITEM_IMAGE_PATH = "assets/ui/items/";
+
 const moveSpeed = 120;
 const animInterval = 180;
 
@@ -66,17 +84,13 @@ async function preloadSprites() {
 }
 
 async function setCharacterPath(newPath) {
-    if (!newPath || newPath === characterPath) {
-        return;
-    }
+    if (!newPath || newPath === characterPath) return;
     characterPath = newPath;
     await discoverFrames();
     await preloadSprites();
     animFrame = 0;
     animTimer = 0;
-    if (playerEl) {
-        updatePlayerSprite();
-    }
+    if (playerEl) updatePlayerSprite();
 }
 
 function tileKey(col, row) {
@@ -93,7 +107,6 @@ function createTileElement(col, row, type, zIndex = "0") {
     tile.style.position = "absolute";
     tile.style.top = `${Math.round(row * tileWidth)}px`;
     tile.style.left = `${Math.round(col * tileWidth)}px`;
-    tile.style.backgroundColor = "transparent";
     tile.style.zIndex = zIndex;
     tile.style.pointerEvents = "none";
     worldEl.appendChild(tile);
@@ -102,9 +115,7 @@ function createTileElement(col, row, type, zIndex = "0") {
 
 function ensureTile(col, row) {
     const key = tileKey(col, row);
-    if (tileElements.has(key)) {
-        return;
-    }
+    if (tileElements.has(key)) return;
 
     const baseType = getBaseTileType(col, row, seed, regionSize, lakeWidth, lakeHeight);
     const baseTile = createTileElement(col, row, baseType, "0");
@@ -136,14 +147,8 @@ function updateVisibleTiles() {
 
     for (const [key, entry] of tileElements) {
         if (!needed.has(key)) {
-            if (entry.base) {
-                entry.base.remove();
-            } else {
-                entry.remove();
-            }
-            if (entry.overlay) {
-                entry.overlay.remove();
-            }
+            if (entry.base) entry.base.remove();
+            if (entry.overlay) entry.overlay.remove();
             tileElements.delete(key);
         }
     }
@@ -193,6 +198,115 @@ function createHud() {
     updateCoords();
 }
 
+function getItemTexturePath(itemId) {
+    if (!itemId) return null;
+    return `${ITEM_IMAGE_PATH}${itemId}.png`;
+}
+
+function renderInventory() {
+    if (!inventoryEl) return;
+    slotElements.forEach((el, idx) => {
+        el.innerHTML = "";
+
+        if (idx === draggingIndex) return;
+
+        const item = playerInventory[idx];
+        if (item) {
+            const itemImg = document.createElement("img");
+            itemImg.src = getItemTexturePath(item);
+            itemImg.alt = item;
+            itemImg.draggable = false;
+            el.appendChild(itemImg);
+        }
+    });
+}
+
+function swapInventoryItems(a, b) {
+    if (a < 0 || a >= INVENTORY_SIZE || b < 0 || b >= INVENTORY_SIZE) return;
+
+    if (a !== b) {
+        const temp = playerInventory[a];
+        playerInventory[a] = playerInventory[b];
+        playerInventory[b] = temp;
+        sendPlayerUpdate();
+    }
+}
+
+function createInventoryUI() {
+    document.documentElement.style.setProperty('--inv-scale', INVENTORY_SCALE);
+
+    inventoryEl = document.createElement("div");
+    inventoryEl.id = "inventory";
+    inventoryEl.style.gridTemplateColumns = `repeat(${INVENTORY_COLS}, calc(18px * ${INVENTORY_SCALE}))`;
+    inventoryEl.style.display = inventoryVisible ? "grid" : "none";
+
+    draggedItemEl = document.createElement("img");
+    draggedItemEl.id = "dragged-item";
+    draggedItemEl.draggable = false;
+    document.body.appendChild(draggedItemEl);
+
+    for (let i = 0; i < INVENTORY_SIZE; i++) {
+        const slot = document.createElement("div");
+        slot.className = "slot";
+        slot.dataset.index = i.toString();
+
+        slot.addEventListener("mousedown", (e) => {
+            if (e.button !== 0) return;
+            e.preventDefault();
+
+            const index = parseInt(slot.dataset.index, 10);
+            const item = playerInventory[index];
+            if (item) {
+                draggingIndex = index;
+                draggedItemEl.src = getItemTexturePath(item);
+
+                const imgInsideSlot = slot.querySelector("img");
+                const targetRect = imgInsideSlot ? imgInsideSlot.getBoundingClientRect() : slot.getBoundingClientRect();
+
+                dragOffsetX = e.clientX - targetRect.left;
+                dragOffsetY = e.clientY - targetRect.top;
+
+                draggedItemEl.style.left = `${e.clientX - dragOffsetX}px`;
+                draggedItemEl.style.top = `${e.clientY - dragOffsetY}px`;
+                draggedItemEl.style.display = "block";
+
+                renderInventory();
+            }
+        });
+
+        inventoryEl.appendChild(slot);
+        slotElements.push(slot);
+    }
+
+    document.addEventListener("mousemove", (e) => {
+        if (draggingIndex !== null && draggedItemEl) {
+            draggedItemEl.style.left = `${e.clientX - dragOffsetX}px`;
+            draggedItemEl.style.top = `${e.clientY - dragOffsetY}px`;
+        }
+    });
+
+    document.addEventListener("mouseup", (e) => {
+        if (draggingIndex !== null) {
+            const targetSlot = e.target.closest(".slot");
+
+            if (targetSlot) {
+                const targetIdx = parseInt(targetSlot.dataset.index, 10);
+                if (!isNaN(targetIdx)) {
+                    swapInventoryItems(draggingIndex, targetIdx);
+                }
+            }
+
+            draggingIndex = null;
+
+            if (draggedItemEl) draggedItemEl.style.display = "none";
+            renderInventory();
+        }
+    });
+
+    document.body.appendChild(inventoryEl);
+    renderInventory();
+}
+
 function getMovementState() {
     let vx = 0;
     let vy = 0;
@@ -202,9 +316,7 @@ function getMovementState() {
     if (keys["w"]) vy -= 1;
     if (keys["s"]) vy += 1;
 
-    if (vx === 0 && vy === 0) {
-        return { vx: 0, vy: 0, direction: "idle" };
-    }
+    if (vx === 0 && vy === 0) return { vx: 0, vy: 0, direction: "idle" };
 
     let moveDirection;
     if (vy < 0) moveDirection = "forward";
@@ -246,16 +358,12 @@ function updateRemotePlayers(players) {
     const knownIds = new Set();
 
     for (const [playerId, payload] of Object.entries(players || {})) {
-        if (playerId === localPlayerId) {
-            continue;
-        }
+        if (playerId === localPlayerId) continue;
         knownIds.add(playerId);
 
         const state = normalizeRemoteState(payload);
         let player = remotePlayers.get(playerId);
-        if (!player) {
-            player = createRemotePlayer(playerId);
-        }
+        if (!player) player = createRemotePlayer(playerId);
 
         const animation = state.animation || "idlebackward";
         const totalFrames = frameCounts[animation] || 1;
@@ -284,22 +392,18 @@ function updateCoords() {
 function getPlayerSnapshot() {
     const spriteName = direction === "idle" ? `idle${lastDirection}` : direction;
     return {
-        position: { x: playerWorldX, y: playerWorldY },
-        animation: spriteName,
         character: characterPath,
+        inventory: playerInventory.slice(),
+        animation: spriteName,
     };
 }
 
 function sendPlayerUpdate() {
-    if (!ws || ws.readyState !== WebSocket.OPEN) {
-        return;
-    }
+    if (!ws || ws.readyState !== WebSocket.OPEN) return;
 
     const snapshot = getPlayerSnapshot();
     const payload = JSON.stringify({ operation: "update", data: snapshot });
-    if (payload === lastSentSnapshot) {
-        return;
-    }
+    if (payload === lastSentSnapshot) return;
 
     ws.send(payload);
     lastSentSnapshot = payload;
@@ -318,18 +422,14 @@ async function handleServerMessage(event) {
             }
             updateRemotePlayers(message.players);
         }
-        if (seed.length) {
-            updateCamera();
-        }
+        if (seed.length) updateCamera();
         return;
     }
 
     if (message.type === "state") {
         if (Array.isArray(message.seed)) {
             seed = message.seed;
-            if (seed.length) {
-                updateVisibleTiles();
-            }
+            if (seed.length) updateVisibleTiles();
         }
         if (message.players) {
             const localData = message.players[localPlayerId];
@@ -346,6 +446,18 @@ function fetchLocalPlayerData() {
         .then((response) => response.json())
         .then((data) => {
             const localData = data.data || {};
+            if (Array.isArray(localData.inventory)) {
+                playerInventory = localData.inventory.slice(0, INVENTORY_SIZE);
+                if (playerInventory.length < INVENTORY_SIZE) {
+                    const fillCount = INVENTORY_SIZE - playerInventory.length;
+                    for (let i = 0; i < fillCount; i++) {
+                        playerInventory.push(null);
+                    }
+                }
+            } else {
+                playerInventory = Array(INVENTORY_SIZE).fill(null);
+            }
+            renderInventory();
             if (localData.character) {
                 return setCharacterPath(localData.character);
             }
@@ -361,10 +473,7 @@ function connectToServer() {
             ws = new WebSocket(`${protocol}://${window.location.hostname}:8900`);
 
             return new Promise((resolve, reject) => {
-                ws.onopen = () => {
-                    ws.send(JSON.stringify({ token: data.token }));
-                };
-
+                ws.onopen = () => ws.send(JSON.stringify({ token: data.token }));
                 ws.onmessage = async (event) => {
                     const message = JSON.parse(event.data);
                     if (message.type === "welcome") {
@@ -374,11 +483,8 @@ function connectToServer() {
                     }
                     await handleServerMessage(event);
                 };
-
                 ws.onerror = () => reject(new Error("WebSocket connection failed."));
-                ws.onclose = () => {
-                    ws = null;
-                };
+                ws.onclose = () => { ws = null; };
             });
         });
 }
@@ -390,9 +496,7 @@ function gameLoop(time) {
     const movement = getMovementState();
     const newDirection = movement.direction;
     if (newDirection !== direction) {
-        if (direction !== "idle") {
-            lastDirection = direction;
-        }
+        if (direction !== "idle") lastDirection = direction;
         direction = newDirection;
         animFrame = 0;
         animTimer = 0;
@@ -405,18 +509,12 @@ function gameLoop(time) {
         const speed = moveSpeed / len;
         playerWorldX += movement.vx * speed * dt;
         playerWorldY += movement.vy * speed * dt;
+    }
 
-        animTimer += dt * 1000;
-        if (animTimer >= animInterval) {
-            animTimer = 0;
-            animFrame = nextAnimFrame(currentAnim, animFrame);
-        }
-    } else {
-        animTimer += dt * 1000;
-        if (animTimer >= animInterval) {
-            animTimer = 0;
-            animFrame = nextAnimFrame(currentAnim, animFrame);
-        }
+    animTimer += dt * 1000;
+    if (animTimer >= animInterval) {
+        animTimer = 0;
+        animFrame = nextAnimFrame(currentAnim, animFrame);
     }
 
     updatePlayerSprite();
@@ -427,37 +525,49 @@ function gameLoop(time) {
 }
 
 window.addEventListener("keydown", (e) => {
-    keys[e.key.toLowerCase()] = true;
+    if (e.repeat) return;
+    const key = e.key.toLowerCase();
+    keys[key] = true;
+
+    if (key === "i") {
+        inventoryVisible = !inventoryVisible;
+        if (inventoryEl) {
+            inventoryEl.style.display = inventoryVisible ? "grid" : "none";
+        }
+    }
 });
 
 window.addEventListener("keyup", (e) => {
     keys[e.key.toLowerCase()] = false;
 });
 
+window.addEventListener("mousedown", (e) => {
+    if (e.button === 0) e.preventDefault();
+});
+
+window.addEventListener("dragstart", (e) => e.preventDefault());
+window.addEventListener("contextmenu", (e) => e.preventDefault());
+window.addEventListener("selectstart", (e) => e.preventDefault());
+
 window.addEventListener("resize", () => {
     updateCamera();
 });
 
 async function init() {
-    document.body.style.margin = "0";
-    document.body.style.overflow = "hidden";
-
     viewportEl = document.createElement("div");
     viewportEl.id = "viewport";
     document.body.appendChild(viewportEl);
 
     worldEl = document.createElement("div");
     worldEl.id = "world";
-    worldEl.style.position = "absolute";
-    worldEl.style.top = "0";
-    worldEl.style.left = "0";
     viewportEl.appendChild(worldEl);
 
+    createHud();
+    createInventoryUI();
     await fetchLocalPlayerData();
     await connectToServer();
     await discoverFrames();
     await preloadSprites();
-    createHud();
     createPlayer();
     updateCamera();
     requestAnimationFrame(gameLoop);

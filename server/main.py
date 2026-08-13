@@ -132,6 +132,7 @@ def build_player_state(player_id, player):
         "position": normalize_position(data.get("position", {"x": 0, "y": 0})),
         "animation": data.get("animation", "idle"),
         "character": data.get("character", "assets/characters/basicrobot"),
+        "inventory": data.get("inventory", []),
     }
 
 
@@ -171,11 +172,16 @@ async def broadcast_world_state():
         "seed": get_world_seed(),
         "players": collect_active_players_snapshot(),
     }
+    message = json.dumps(payload)
+    disconnected = set()
     for websocket in list(CONNECTED_CLIENTS):
         try:
-            await websocket.send(json.dumps(payload))
+            await websocket.send(message)
         except Exception:
-            pass
+            disconnected.add(websocket)
+
+    for ws in disconnected:
+        CONNECTED_CLIENTS.discard(ws)
 
 
 @app.route("/")
@@ -258,6 +264,7 @@ def register():
                 "position": {"x": 0, "y": 0},
                 "animation": "idle",
                 "character": "assets/characters/basicrobot",
+                "inventory": [],
             },
         },
     )
@@ -352,18 +359,28 @@ async def networkloop(websocket):
                 position = normalize_position(payload.get("position", data.get("position", {"x": 0, "y": 0})))
                 animation = payload.get("animation", data.get("animation", "idle"))
                 character = payload.get("character", data.get("character", "assets/characters/basicrobot"))
+                inventory = payload.get("inventory") if "inventory" in payload else data.get("inventory", [])
 
                 player["data"] = {
                     "position": position,
                     "animation": animation,
                     "character": character,
+                    "inventory": inventory,
                 }
                 save_player(player_id, player)
                 await broadcast_world_state()
                 await websocket.send(json.dumps({"ok": True, "type": "sync"}))
             elif operation == "get":
                 player = load_player(player_id)
-                await websocket.send(json.dumps({"data": player.get("data", {}), "seed": get_world_seed(), "players": collect_active_players_snapshot()}))
+                await websocket.send(
+                    json.dumps(
+                        {
+                            "data": player.get("data", {}) if player else {},
+                            "seed": get_world_seed(),
+                            "players": collect_active_players_snapshot(),
+                        }
+                    )
+                )
             else:
                 await websocket.send(json.dumps({"error": "unknown_operation"}))
     finally:

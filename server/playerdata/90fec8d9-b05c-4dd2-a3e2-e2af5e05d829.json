@@ -4,10 +4,36 @@
   "created_at": "2026-08-11T20:14:48.980336+00:00",
   "data": {
     "position": {
-      "x": 23.317645019878196,
-      "y": -431.7863806195516
+      "x": 950.6548956311523,
+      "y": 619.3572416906695
     },
-    "animation": "idleforward",
-    "character": "assets/characters/basicrobot"
+    "animation": "idlebackward",
+    "character": "assets/characters/basicrobot",
+    "inventory": [
+      "oak_log_chunk",
+      "oak_log_chunk",
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null
+    ]
   }
 }

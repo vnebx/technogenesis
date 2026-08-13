@@ -7,7 +7,7 @@ const lakeHeight = 3;
 const regionSize = 32;
 const treeRegionSize = 16;
 let characterPath = "assets/characters/basicrobot";
-const directions = ["idle", "forward", "backward", "left", "right"];
+const directions = ["idle", "forward", "backward", "left", "right", "idleforward", "idlebackward", "idleleft", "idleright"];
 const moveSpeed = 120;
 const animInterval = 180;
 
@@ -21,6 +21,7 @@ let seed = [];
 let playerWorldX = 0;
 let playerWorldY = 0;
 let direction = "idle";
+let lastDirection = "backward";
 let animFrame = 0;
 let animTimer = 0;
 let lastTime = 0;
@@ -216,13 +217,14 @@ function getMovementState() {
 
 function nextAnimFrame(name, current) {
     const total = frameCounts[name];
-    if (total <= 1) return 0;
+    if (!total || total <= 1) return 0;
     const next = current + 1;
     return next < total ? next : 0;
 }
 
 function updatePlayerSprite() {
-    const src = `${characterPath}/${direction}${animFrame}.png`;
+    const spriteName = direction === "idle" ? `idle${lastDirection}` : direction;
+    const src = `${characterPath}/${spriteName}${animFrame}.png`;
     playerEl.style.backgroundImage = `url(${src})`;
     playerEl.style.left = `${Math.round(playerWorldX)}px`;
     playerEl.style.top = `${Math.round(playerWorldY)}px`;
@@ -230,12 +232,12 @@ function updatePlayerSprite() {
 
 function normalizeRemoteState(entity) {
     if (!entity || typeof entity !== "object") {
-        return { position: { x: 0, y: 0 }, animation: "idle", character: characterPath };
+        return { position: { x: 0, y: 0 }, animation: "idlebackward", character: characterPath };
     }
     const position = entity.position || { x: 0, y: 0 };
     return {
         position: { x: Number(position.x) || 0, y: Number(position.y) || 0 },
-        animation: entity.animation || "idle",
+        animation: entity.animation || "idlebackward",
         character: entity.character || characterPath,
     };
 }
@@ -255,7 +257,7 @@ function updateRemotePlayers(players) {
             player = createRemotePlayer(playerId);
         }
 
-        const animation = state.animation || "idle";
+        const animation = state.animation || "idlebackward";
         const totalFrames = frameCounts[animation] || 1;
         const currentFrame = Math.floor(Date.now() / animInterval) % totalFrames;
         const spritePath = `${state.character}/${animation}${currentFrame}.png`;
@@ -280,9 +282,10 @@ function updateCoords() {
 }
 
 function getPlayerSnapshot() {
+    const spriteName = direction === "idle" ? `idle${lastDirection}` : direction;
     return {
         position: { x: playerWorldX, y: playerWorldY },
-        animation: direction,
+        animation: spriteName,
         character: characterPath,
     };
 }
@@ -387,10 +390,15 @@ function gameLoop(time) {
     const movement = getMovementState();
     const newDirection = movement.direction;
     if (newDirection !== direction) {
+        if (direction !== "idle") {
+            lastDirection = direction;
+        }
         direction = newDirection;
         animFrame = 0;
         animTimer = 0;
     }
+
+    const currentAnim = direction === "idle" ? `idle${lastDirection}` : direction;
 
     if (movement.vx !== 0 || movement.vy !== 0) {
         const len = Math.hypot(movement.vx, movement.vy);
@@ -401,11 +409,14 @@ function gameLoop(time) {
         animTimer += dt * 1000;
         if (animTimer >= animInterval) {
             animTimer = 0;
-            animFrame = nextAnimFrame(direction, animFrame);
+            animFrame = nextAnimFrame(currentAnim, animFrame);
         }
     } else {
-        animFrame = 0;
-        animTimer = 0;
+        animTimer += dt * 1000;
+        if (animTimer >= animInterval) {
+            animTimer = 0;
+            animFrame = nextAnimFrame(currentAnim, animFrame);
+        }
     }
 
     updatePlayerSprite();

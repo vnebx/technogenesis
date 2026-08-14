@@ -7,11 +7,13 @@
       "x": 950.6548956311523,
       "y": 619.3572416906695
     },
-    "animation": "idlebackward",
+    "animation": "idleforward",
     "character": "assets/characters/basicrobot",
     "inventory": [
-      "oak_log_chunk",
-      "oak_log_chunk",
+      {
+        "count": 1
+      },
+      null,
       null,
       null,
       null,

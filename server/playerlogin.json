@@ -3,12 +3,12 @@
     "test": {
       "password_hash": "scrypt:32768:8:1$HIc7e0u7nvPyzPw2$7730c72c79285a2268bfac3cccf48cc803727d810acfa8cc3fd59ffcb4fa4fe7f9e4d85ddaed6215a20fa6389e087a50c221e30eef65d4cbd53e00a4b6e52f33",
       "player_id": "90fec8d9-b05c-4dd2-a3e2-e2af5e05d829",
-      "last_ip": "192.168.1.228"
+      "last_ip": "127.0.0.1"
     },
     "test2": {
       "password_hash": "scrypt:32768:8:1$VPAZJ9rnG1LQZC4Y$23c4fd1f9c661d91d678d2c54a10e2507f05859210998953d992f25775d6519b8940161cb38f16f554ae034a1d220023d4372cbe88db92f114af8fe64e1ab887",
       "player_id": "10650362-8b70-41ba-91bc-0d97864c00cc",
-      "last_ip": "192.168.1.228"
+      "last_ip": "127.0.0.1"
     }
   }
 }

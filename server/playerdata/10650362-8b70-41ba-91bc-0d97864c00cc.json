@@ -7,7 +7,33 @@
       "x": -146.18083978995685,
       "y": -156.26083978995695
     },
-    "animation": "idleforward",
-    "character": "assets/characters/basicrobot2"
+    "animation": "idlebackward",
+    "character": "assets/characters/basicrobot2",
+    "inventory": [
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null
+    ]
   }
 }

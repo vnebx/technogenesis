@@ -1,5 +1,5 @@
 import { getBaseTileType } from "./mapgen/lake.js";
-import { getTreeTile } from "./mapgen/tree.js";
+import { getTreeTile, getTreeAt } from "./mapgen/tree.js";
 
 const tileWidth = 60;
 const lakeWidth = 4;
@@ -7,7 +7,7 @@ const lakeHeight = 3;
 const regionSize = 32;
 const treeRegionSize = 16;
 let characterPath = "assets/characters/basicrobot";
-const directions = ["idle", "forward", "backward", "left", "right", "idleforward", "idlebackward", "idleleft", "idleright"];
+const directions = ["idle", "forward", "backward", "left", "right", "idleforward", "idlebackward", "idleleft", "idleright", "forwarduse", "backwarduse", "leftuse", "rightuse"];
 
 const INVENTORY_SCALE = 3;
 const INVENTORY_COLS = 4;
@@ -19,19 +19,34 @@ let inventoryVisible = false;
 let inventoryEl = null;
 let cursorItem = null;
 let cursorItemEl = null;
+let tooltipEl = null;
 const slotElements = [];
 
 const ITEM_IMAGE_PATH = "assets/ui/items/";
 const MAX_STACK = 64;
+const INVENTORY_TEXT_SCALE = 0.9;
 
 const moveSpeed = 120;
 const animInterval = 180;
+const useDuration = 500;
+const useCooldown = 500;
+const CHOP_USES_REQUIRED = 4;
+const CHOP_REWARD = "oak_log_chunk";
+const CHOP_REWARD_COUNT = 4;
+const GROUND_ITEM_SCALE = 2;
+const GROUND_ITEM_BASE_SIZE = 16;
+const DROP_DISTANCE = Math.round(tileWidth * 0.8);
+const GROUND_ITEM_BOB_AMPLITUDE = 4;
 
 const keys = {};
 const imageCache = {};
 const frameCounts = {};
 const tileElements = new Map();
 const remotePlayers = new Map();
+const removedTrees = new Set();
+const treeUseCounts = new Map();
+let groundItems = [];
+const groundItemEls = new Map();
 
 let seed = [];
 let playerWorldX = 0;
@@ -40,6 +55,9 @@ let direction = "idle";
 let lastDirection = "backward";
 let animFrame = 0;
 let animTimer = 0;
+let using = false;
+let useTimer = 0;
+let useCooldownTimer = 0;
 let lastTime = 0;
 let viewportEl = null;
 let cameraX = 0;
@@ -117,12 +135,12 @@ function ensureTile(col, row) {
 
     const baseType = getBaseTileType(col, row, seed, regionSize, lakeWidth, lakeHeight);
     const baseTile = createTileElement(col, row, baseType, "0");
-    const treeType = getTreeTile(col, row, seed, regionSize, treeRegionSize);
-    if (!treeType) {
+    const treeOrigin = getTreeAt(col, row, seed, regionSize, treeRegionSize);
+    if (!treeOrigin || removedTrees.has(treeKey(treeOrigin))) {
         tileElements.set(key, { base: baseTile });
         return;
     }
-
+    const treeType = getTreeTile(col, row, seed, regionSize, treeRegionSize);
     const overlayZ = treeType === "oak_tree_leaves" ? "3" : "1";
     const overlayTile = createTileElement(col, row, treeType, overlayZ);
     tileElements.set(key, { base: baseTile, overlay: overlayTile });
@@ -327,8 +345,30 @@ function renderInventory() {
     });
 }
 
+function showItemTooltip(index, slotEl) {
+    const item = playerInventory[index];
+    if (!item || !tooltipEl) return;
+    tooltipEl.textContent = item.id.split("_").join(" ");
+    tooltipEl.style.display = "block";
+    const rect = slotEl.getBoundingClientRect();
+    let left = rect.left;
+    let top = rect.top - tooltipEl.offsetHeight - 4;
+    if (top < 0) {
+        top = rect.bottom + 4;
+    }
+    const maxLeft = window.innerWidth - tooltipEl.offsetWidth;
+    left = Math.max(0, Math.min(left, maxLeft));
+    tooltipEl.style.left = `${left}px`;
+    tooltipEl.style.top = `${top}px`;
+}
+
+function hideItemTooltip() {
+    if (tooltipEl) tooltipEl.style.display = "none";
+}
+
 function createInventoryUI() {
     document.documentElement.style.setProperty('--inv-scale', INVENTORY_SCALE);
+    document.documentElement.style.setProperty('--inv-text-scale', INVENTORY_TEXT_SCALE);
 
     inventoryEl = document.createElement("div");
     inventoryEl.id = "inventory";
@@ -345,10 +385,18 @@ function createInventoryUI() {
     cursorItemEl.appendChild(cursorCount);
     document.body.appendChild(cursorItemEl);
 
+    tooltipEl = document.createElement("div");
+    tooltipEl.id = "item-tooltip";
+    tooltipEl.style.display = "none";
+    document.body.appendChild(tooltipEl);
+
     for (let i = 0; i < INVENTORY_SIZE; i++) {
         const slot = document.createElement("div");
         slot.className = "slot";
         slot.dataset.index = i.toString();
+
+        slot.addEventListener("mouseenter", () => showItemTooltip(i, slot));
+        slot.addEventListener("mouseleave", hideItemTooltip);
 
         slot.addEventListener("mousedown", (e) => {
             e.preventDefault();
@@ -410,8 +458,199 @@ function nextAnimFrame(name, current) {
     return next < total ? next : 0;
 }
 
+function getFacingDirection() {
+    return direction === "idle" ? lastDirection : direction;
+}
+
+function getCurrentSpriteName() {
+    if (using) return `${getFacingDirection()}use`;
+    return direction === "idle" ? `idle${lastDirection}` : direction;
+}
+
+function treeKey(origin) {
+    return `${origin.col},${origin.row}`;
+}
+
+function refreshRemovedTiles() {
+    for (const [key, entry] of [...tileElements]) {
+        const [colStr, rowStr] = key.split(",");
+        const col = parseInt(colStr, 10);
+        const row = parseInt(rowStr, 10);
+        const origin = getTreeAt(col, row, seed, regionSize, treeRegionSize);
+        if (origin && removedTrees.has(treeKey(origin))) {
+            if (entry.base) entry.base.remove();
+            if (entry.overlay) entry.overlay.remove();
+            tileElements.delete(key);
+            ensureTile(col, row);
+        }
+    }
+}
+
+function treeAtPlayer() {
+    const px = Math.floor(playerWorldX / tileWidth);
+    const py = Math.floor(playerWorldY / tileWidth);
+    for (let dy = -1; dy <= 1; dy++) {
+        for (let dx = -1; dx <= 1; dx++) {
+            const origin = getTreeAt(px + dx, py + dy, seed, regionSize, treeRegionSize);
+            if (origin && !removedTrees.has(treeKey(origin))) {
+                return origin;
+            }
+        }
+    }
+    return null;
+}
+
+function sendRemoveTree(key) {
+    if (!ws || ws.readyState !== WebSocket.OPEN) return;
+    ws.send(JSON.stringify({ operation: "remove_tree", tree: key }));
+}
+
+function chopTree(origin, key) {
+    removedTrees.add(key);
+    refreshRemovedTiles();
+    scatterDrop(CHOP_REWARD, CHOP_REWARD_COUNT, origin.col, origin.row);
+    sendRemoveTree(key);
+}
+
+function applyUseEffect() {
+    const origin = treeAtPlayer();
+    if (!origin) return;
+    const key = treeKey(origin);
+    const count = (treeUseCounts.get(key) || 0) + 1;
+    treeUseCounts.set(key, count);
+    if (count >= CHOP_USES_REQUIRED) {
+        treeUseCounts.delete(key);
+        chopTree(origin, key);
+    }
+}
+
+function groundItemPixelSize() {
+    return Math.round(GROUND_ITEM_BASE_SIZE * GROUND_ITEM_SCALE);
+}
+
+function hashString(str) {
+    let h = 0;
+    for (let i = 0; i < str.length; i++) {
+        h = (h * 31 + str.charCodeAt(i)) | 0;
+    }
+    return h;
+}
+
+function renderGroundItems() {
+    const seen = new Set();
+    const size = groundItemPixelSize();
+    for (const item of groundItems) {
+        seen.add(item.id);
+        let el = groundItemEls.get(item.id);
+        if (!el) {
+            el = document.createElement("img");
+            el.className = "ground-item";
+            el.draggable = false;
+            el.style.position = "absolute";
+            el.style.zIndex = "1";
+            el.style.pointerEvents = "none";
+            worldEl.appendChild(el);
+            groundItemEls.set(item.id, el);
+        }
+        el.src = getItemTexturePath(item.item);
+        el.style.width = `${size}px`;
+        el.style.height = `${size}px`;
+    }
+    for (const [id, el] of groundItemEls) {
+        if (!seen.has(id)) {
+            el.remove();
+            groundItemEls.delete(id);
+        }
+    }
+    updateGroundItemAnimation();
+}
+
+function updateGroundItemAnimation() {
+    const size = groundItemPixelSize();
+    const now = Date.now();
+    for (const item of groundItems) {
+        const el = groundItemEls.get(item.id);
+        if (!el) continue;
+        const phase = (hashString(item.id) % 628) / 100;
+        const bob = Math.sin(now / 600 + phase) * GROUND_ITEM_BOB_AMPLITUDE;
+        el.style.left = `${Math.round(item.x - size / 2)}px`;
+        el.style.top = `${Math.round(item.y - size / 2 + bob)}px`;
+    }
+}
+
+function syncGroundItems(list) {
+    groundItems = Array.isArray(list) ? list : [];
+    renderGroundItems();
+}
+
+function dropItemToGround(itemId, count, x, y) {
+    if (!ws || ws.readyState !== WebSocket.OPEN) return;
+    ws.send(JSON.stringify({ operation: "drop_item", data: { item: itemId, count, x, y } }));
+}
+
+function sendPickupGroundItem(id) {
+    if (!ws || ws.readyState !== WebSocket.OPEN) return;
+    ws.send(JSON.stringify({ operation: "pickup_item", id }));
+}
+
+function scatterDrop(itemId, totalCount, baseCol, baseRow) {
+    const offsets = [[0, 0], [0, 1], [-1, 0], [1, 0]];
+    for (let i = 0; i < totalCount; i++) {
+        const [dx, dy] = offsets[i % offsets.length];
+        dropItemToGround(
+            itemId,
+            1,
+            (baseCol + dx) * tileWidth + tileWidth / 2,
+            (baseRow + dy) * tileWidth + tileWidth / 2
+        );
+    }
+}
+
+function checkGroundPickup() {
+    const size = groundItemPixelSize();
+    const half = size / 2;
+    const playerLeft = playerWorldX;
+    const playerTop = playerWorldY;
+    const playerRight = playerWorldX + tileWidth;
+    const playerBottom = playerWorldY + tileWidth;
+    let picked = false;
+    for (const item of [...groundItems]) {
+        const itemLeft = item.x - half;
+        const itemTop = item.y - half;
+        const itemRight = item.x + half;
+        const itemBottom = item.y + half;
+        if (playerRight > itemLeft && playerLeft < itemRight && playerBottom > itemTop && playerTop < itemBottom) {
+            addItem(item.item, item.count);
+            sendPickupGroundItem(item.id);
+            groundItems = groundItems.filter((g) => g.id !== item.id);
+            picked = true;
+        }
+    }
+    if (picked) renderGroundItems();
+}
+
+function dropCursorItem() {
+    if (!cursorItem) return;
+    const facing = getFacingDirection();
+    const offsets = { forward: [0, -1], backward: [0, 1], left: [-1, 0], right: [1, 0] };
+    const [dx, dy] = offsets[facing] || [0, 1];
+    const cx = playerWorldX + tileWidth / 2;
+    const cy = playerWorldY + tileWidth / 2;
+    dropItemToGround(cursorItem.id, cursorItem.count, cx + dx * DROP_DISTANCE, cy + dy * DROP_DISTANCE);
+    cursorItem = null;
+    updateCursorItem();
+}
+
+function startUse() {
+    using = true;
+    useTimer = useDuration;
+    animFrame = 0;
+    animTimer = 0;
+    applyUseEffect();
+}
+
 function updatePlayerSprite() {
-    const spriteName = direction === "idle" ? `idle${lastDirection}` : direction;
+    const spriteName = getCurrentSpriteName();
     const src = `${characterPath}/${spriteName}${animFrame}.png`;
     playerEl.style.backgroundImage = `url(${src})`;
     playerEl.style.left = `${Math.round(playerWorldX)}px`;
@@ -465,8 +704,15 @@ function updateCoords() {
     coordEl.textContent = `x: ${x}  y: ${y}`;
 }
 
+function syncRemovedTrees(list) {
+    if (!Array.isArray(list)) return;
+    removedTrees.clear();
+    list.forEach((key) => removedTrees.add(String(key)));
+    refreshRemovedTiles();
+}
+
 function getPlayerSnapshot() {
-    const spriteName = direction === "idle" ? `idle${lastDirection}` : direction;
+    const spriteName = getCurrentSpriteName();
     return {
         character: characterPath,
         inventory: playerInventory.map((slot) => (slot ? { id: slot.id, count: slot.count } : null)),
@@ -491,6 +737,8 @@ async function handleServerMessage(event) {
     if (message.type === "welcome") {
         localPlayerId = message.player_id;
         seed = Array.isArray(message.seed) ? message.seed : [];
+        syncRemovedTrees(message.removed_trees);
+        syncGroundItems(message.ground_items);
         if (message.players) {
             const localData = message.players[localPlayerId];
             if (localData && localData.character) {
@@ -507,6 +755,8 @@ async function handleServerMessage(event) {
             seed = message.seed;
             if (seed.length) updateVisibleTiles();
         }
+        syncRemovedTrees(message.removed_trees);
+        syncGroundItems(message.ground_items);
         if (message.players) {
             const localData = message.players[localPlayerId];
             if (localData && localData.character) {
@@ -575,7 +825,7 @@ function gameLoop(time) {
         animTimer = 0;
     }
 
-    const currentAnim = direction === "idle" ? `idle${lastDirection}` : direction;
+    const currentAnim = getCurrentSpriteName();
 
     if (movement.vx !== 0 || movement.vy !== 0) {
         const len = Math.hypot(movement.vx, movement.vy);
@@ -584,12 +834,30 @@ function gameLoop(time) {
         playerWorldY += movement.vy * speed * dt;
     }
 
-    animTimer += dt * 1000;
-    if (animTimer >= animInterval) {
-        animTimer = 0;
-        animFrame = nextAnimFrame(currentAnim, animFrame);
+    if (using) {
+        useTimer -= dt * 1000;
+        if (useTimer <= 0) {
+            using = false;
+            useCooldownTimer = useCooldown;
+        }
+    }
+    if (useCooldownTimer > 0) {
+        useCooldownTimer = Math.max(0, useCooldownTimer - dt * 1000);
+    }
+    if (keys["f"] && !using && useCooldownTimer <= 0) {
+        startUse();
     }
 
+    if (!using) {
+        animTimer += dt * 1000;
+        if (animTimer >= animInterval) {
+            animTimer = 0;
+            animFrame = nextAnimFrame(currentAnim, animFrame);
+        }
+    }
+
+    checkGroundPickup();
+    updateGroundItemAnimation();
     updatePlayerSprite();
     updateCamera();
     updateCoords();
@@ -602,10 +870,14 @@ window.addEventListener("keydown", (e) => {
     const key = e.key.toLowerCase();
     keys[key] = true;
 
-    if (key === "i") {
+    if (key === "e") {
         inventoryVisible = !inventoryVisible;
         if (inventoryEl) {
             inventoryEl.style.display = inventoryVisible ? "grid" : "none";
+        }
+    } else if (key === "f") {
+        if (!using && useCooldownTimer <= 0) {
+            startUse();
         }
     }
 });
@@ -615,7 +887,12 @@ window.addEventListener("keyup", (e) => {
 });
 
 window.addEventListener("mousedown", (e) => {
-    if (e.button === 0) e.preventDefault();
+    if (e.button === 0) {
+        if (cursorItem && inventoryEl && !inventoryEl.contains(e.target) && e.target !== cursorItemEl) {
+            dropCursorItem();
+        }
+        e.preventDefault();
+    }
 });
 
 window.addEventListener("dragstart", (e) => e.preventDefault());

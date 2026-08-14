@@ -15,6 +15,7 @@ from werkzeug.security import check_password_hash, generate_password_hash
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 PLAYERDATA_DIR = os.path.join(BASE_DIR, "playerdata")
 PLAYERLOGIN_PATH = os.path.join(BASE_DIR, "playerlogin.json")
+WORLD_STATE_PATH = os.path.join(BASE_DIR, "world.json")
 GAME_DIR = os.path.join(BASE_DIR, "game")
 TEMPLATES_DIR = os.path.join(BASE_DIR, "templates")
 WORLD_SEED_LENGTH = 24
@@ -30,6 +31,8 @@ app.config["SESSION_COOKIE_SAMESITE"] = "Lax"
 file_lock = threading.Lock()
 ws_serializer = URLSafeTimedSerializer(app.config["SECRET_KEY"], salt="ws-auth")
 SERVER_STATE = {"seed": None}
+removed_trees = set()
+ground_items = []
 
 
 def load_playerlogin():
@@ -110,9 +113,69 @@ def generate_world_seed():
     return [secrets.randbelow(256) for _ in range(WORLD_SEED_LENGTH)]
 
 
+def load_world_state():
+    if not os.path.exists(WORLD_STATE_PATH):
+        return {}
+    with file_lock:
+        with open(WORLD_STATE_PATH, "r", encoding="utf-8") as f:
+            try:
+                return json.load(f)
+            except (json.JSONDecodeError, OSError):
+                return {}
+
+
+def normalize_ground_items(items):
+    if not isinstance(items, list):
+        return []
+    result = []
+    for entry in items:
+        if not isinstance(entry, dict):
+            continue
+        item = entry.get("item")
+        if not isinstance(item, str):
+            continue
+        try:
+            count = int(entry.get("count", 1))
+            x = float(entry.get("x", 0))
+            y = float(entry.get("y", 0))
+        except (TypeError, ValueError):
+            continue
+        result.append(
+            {
+                "id": str(entry.get("id")),
+                "item": item,
+                "count": max(1, count),
+                "x": x,
+                "y": y,
+            }
+        )
+    return result
+
+
+def save_world_state():
+    with file_lock:
+        with open(WORLD_STATE_PATH, "w", encoding="utf-8") as f:
+            json.dump(
+                {
+                    "seed": SERVER_STATE["seed"],
+                    "removed_trees": sorted(removed_trees),
+                    "ground_items": ground_items,
+                },
+                f,
+                indent=2,
+            )
+
+
 def get_world_seed():
     if SERVER_STATE["seed"] is None:
-        SERVER_STATE["seed"] = generate_world_seed()
+        state = load_world_state()
+        removed_trees.update(state.get("removed_trees", []))
+        ground_items.extend(normalize_ground_items(state.get("ground_items")))
+        if state.get("seed"):
+            SERVER_STATE["seed"] = state["seed"]
+        else:
+            SERVER_STATE["seed"] = generate_world_seed()
+            save_world_state()
     return SERVER_STATE["seed"]
 
 
@@ -170,6 +233,8 @@ async def broadcast_world_state():
     payload = {
         "type": "state",
         "seed": get_world_seed(),
+        "removed_trees": sorted(removed_trees),
+        "ground_items": ground_items,
         "players": collect_active_players_snapshot(),
     }
     message = json.dumps(payload)
@@ -330,6 +395,8 @@ async def networkloop(websocket):
         welcome = {
             "type": "welcome",
             "seed": get_world_seed(),
+            "removed_trees": sorted(removed_trees),
+            "ground_items": ground_items,
             "player_id": player_id,
             "players": collect_active_players_snapshot(),
         }
@@ -370,6 +437,62 @@ async def networkloop(websocket):
                 save_player(player_id, player)
                 await broadcast_world_state()
                 await websocket.send(json.dumps({"ok": True, "type": "sync"}))
+            elif operation == "remove_tree":
+                tree_key = msg.get("tree")
+                if not isinstance(tree_key, str) or "," not in tree_key:
+                    await websocket.send(json.dumps({"error": "invalid_tree"}))
+                    continue
+                try:
+                    col, row = tree_key.split(",", 1)
+                    int(col)
+                    int(row)
+                except ValueError:
+                    await websocket.send(json.dumps({"error": "invalid_tree"}))
+                    continue
+
+                if tree_key not in removed_trees:
+                    removed_trees.add(tree_key)
+                    save_world_state()
+                    await broadcast_world_state()
+                await websocket.send(json.dumps({"ok": True, "type": "sync"}))
+            elif operation == "drop_item":
+                data = msg.get("data", {}) or {}
+                if not isinstance(data, dict):
+                    data = {}
+                item = data.get("item")
+                try:
+                    count = int(data.get("count", 1))
+                    x = float(data.get("x", 0))
+                    y = float(data.get("y", 0))
+                except (TypeError, ValueError):
+                    await websocket.send(json.dumps({"error": "invalid_item"}))
+                    continue
+                if not isinstance(item, str) or not item or count < 1 or count > 64:
+                    await websocket.send(json.dumps({"error": "invalid_item"}))
+                    continue
+                ground_items.append(
+                    {
+                        "id": str(uuid.uuid4()),
+                        "item": item,
+                        "count": count,
+                        "x": x,
+                        "y": y,
+                    }
+                )
+                save_world_state()
+                await broadcast_world_state()
+                await websocket.send(json.dumps({"ok": True, "type": "sync"}))
+            elif operation == "pickup_item":
+                item_id = msg.get("id")
+                if not isinstance(item_id, str):
+                    await websocket.send(json.dumps({"error": "invalid_item"}))
+                    continue
+                removed = [g for g in ground_items if g["id"] == item_id]
+                if removed:
+                    ground_items.remove(removed[0])
+                    save_world_state()
+                    await broadcast_world_state()
+                await websocket.send(json.dumps({"ok": True, "type": "sync"}))
             elif operation == "get":
                 player = load_player(player_id)
                 await websocket.send(
@@ -377,6 +500,8 @@ async def networkloop(websocket):
                         {
                             "data": player.get("data", {}) if player else {},
                             "seed": get_world_seed(),
+                            "removed_trees": sorted(removed_trees),
+                            "ground_items": ground_items,
                             "players": collect_active_players_snapshot(),
                         }
                     )

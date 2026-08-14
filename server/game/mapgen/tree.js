@@ -28,7 +28,7 @@ export function getTreeOrigin(rx, ry, seed, treeRegionSize) {
 
 getTreeOrigin.cache = new Map();
 
-export function getTreeTile(col, row, seed, regionSize, treeRegionSize) {
+export function getTreeAt(col, row, seed, regionSize, treeRegionSize) {
     const rx = Math.floor(col / regionSize);
     const ry = Math.floor(row / regionSize);
 
@@ -39,15 +39,27 @@ export function getTreeTile(col, row, seed, regionSize, treeRegionSize) {
             const treeBase = origin.row;
             const trunkRows = [treeBase - 1, treeBase - 2];
             if (col === treeCol && trunkRows.includes(row)) {
-                return "oak_log";
+                return origin;
             }
 
             const leafRows = [treeBase - 3, treeBase - 4];
             if (col >= treeCol - 1 && col <= treeCol + 1 && leafRows.includes(row)) {
-                return "oak_tree_leaves";
+                return origin;
             }
         }
     }
 
     return null;
+}
+
+export function getTreeTile(col, row, seed, regionSize, treeRegionSize) {
+    const origin = getTreeAt(col, row, seed, regionSize, treeRegionSize);
+    if (!origin) return null;
+
+    const trunkRows = [origin.row - 1, origin.row - 2];
+    if (col === origin.col && trunkRows.includes(row)) {
+        return "oak_log";
+    }
+
+    return "oak_tree_leaves";
 }

@@ -21,6 +21,7 @@ body, html {
 
 :root {
     --inv-scale: 2;
+    --inv-text-scale: 1;
 }
 
 #viewport {
@@ -85,7 +86,7 @@ body, html {
     right: calc(1px * var(--inv-scale));
     color: white;
     font-weight: bold;
-    font-size: calc(8px * var(--inv-scale));
+    font-size: calc(8px * var(--inv-scale) * var(--inv-text-scale));
     line-height: 1;
     text-shadow: 1px 1px 1px #000;
     pointer-events: none;
@@ -115,7 +116,21 @@ body, html {
     right: 0;
     color: white;
     font-weight: bold;
-    font-size: calc(8px * var(--inv-scale));
+    font-size: calc(8px * var(--inv-scale) * var(--inv-text-scale));
     line-height: 1;
     text-shadow: 1px 1px 1px #000;
+}
+
+#item-tooltip {
+    position: fixed;
+    z-index: 1001;
+    background: rgba(0, 0, 0, 0.8);
+    color: white;
+    font-size: calc(8px * var(--inv-scale) * var(--inv-text-scale));
+    padding: calc(2px * var(--inv-text-scale)) calc(6px * var(--inv-text-scale));
+    border: 1px solid #555;
+    border-radius: 2px;
+    pointer-events: none;
+    white-space: nowrap;
+    display: none;
 }

@@ -793,7 +793,7 @@ function connectToServer() {
         .then((response) => response.json())
         .then((data) => {
             const protocol = window.location.protocol === "https:" ? "wss" : "ws";
-            ws = new WebSocket(`${protocol}://${window.location.hostname}:8900`);
+            ws = new WebSocket(`${protocol}://${window.location.host}/ws`);
 
             return new Promise((resolve, reject) => {
                 ws.onopen = () => ws.send(JSON.stringify({ token: data.token }));

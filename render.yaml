@@ -1,0 +1,10 @@
+services:
+  - type: web
+    name: technogenesis
+    runtime: python
+    buildCommand: pip install -r requirements.txt
+    startCommand: python server/main.py
+    healthCheckPath: /login
+    envVars:
+      - key: SECRET_KEY
+        generateValue: true

@@ -220,8 +220,6 @@ function createRemotePlayer(playerId) {
     player.style.backgroundRepeat = "no-repeat";
     player.style.zIndex = "10";
     player.style.pointerEvents = "none";
-    player.style.transform = "translateZ(0)";
-    player.style.willChange = "transform";
     worldEl.appendChild(player);
     remotePlayers.set(playerId, player);
     return player;
@@ -687,9 +685,20 @@ function startUse() {
 function updatePlayerSprite() {
     const spriteName = getCurrentSpriteName();
     const src = `${characterPath}/${spriteName}${animFrame}.png`;
-    playerEl.style.backgroundImage = `url(${src})`;
-    playerEl.style.left = `${Math.round(window.innerWidth / 2 - tileWidth / 2)}px`;
-    playerEl.style.top = `${Math.round(window.innerHeight / 2 - tileWidth / 2)}px`;
+    if (playerEl.dataset.src !== src) {
+        playerEl.dataset.src = src;
+        playerEl.style.backgroundImage = `url(${src})`;
+    }
+    const left = Math.round(window.innerWidth / 2 - tileWidth / 2);
+    const top = Math.round(window.innerHeight / 2 - tileWidth / 2);
+    if (playerEl.dataset.left !== String(left)) {
+        playerEl.dataset.left = String(left);
+        playerEl.style.left = `${left}px`;
+    }
+    if (playerEl.dataset.top !== String(top)) {
+        playerEl.dataset.top = String(top);
+        playerEl.style.top = `${top}px`;
+    }
 }
 
 function normalizeRemoteState(entity) {
@@ -715,14 +724,26 @@ function updateRemotePlayers(players) {
         let player = remotePlayers.get(playerId);
         if (!player) player = createRemotePlayer(playerId);
 
-        const animation = state.animation || "idlebackward";
+        const rawAnimation = state.animation || "idlebackward";
+        const animation = frameCounts[rawAnimation] ? rawAnimation : "idlebackward";
         const totalFrames = frameCounts[animation] || 1;
         const currentFrame = Math.floor(Date.now() / animInterval) % totalFrames;
         const spritePath = `${state.character}/${animation}${currentFrame}.png`;
+        const left = Math.round(state.position.x);
+        const top = Math.round(state.position.y);
 
-        player.style.backgroundImage = `url(${spritePath})`;
-        player.style.left = `${Math.round(state.position.x)}px`;
-        player.style.top = `${Math.round(state.position.y)}px`;
+        if (player.dataset.src !== spritePath) {
+            player.dataset.src = spritePath;
+            player.style.backgroundImage = `url(${spritePath})`;
+        }
+        if (player.dataset.left !== String(left)) {
+            player.dataset.left = String(left);
+            player.style.left = `${left}px`;
+        }
+        if (player.dataset.top !== String(top)) {
+            player.dataset.top = String(top);
+            player.style.top = `${top}px`;
+        }
     }
 
     for (const [playerId, player] of remotePlayers) {

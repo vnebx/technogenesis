@@ -99,6 +99,19 @@ async function preloadSprites() {
     }
 }
 
+const TILE_TYPES = ["grass", "water", "oak_log", "oak_tree_leaves"];
+
+function preloadTiles() {
+    for (const type of TILE_TYPES) {
+        const src = `assets/tiles/${type}.png`;
+        if (!imageCache[src]) {
+            const img = new Image();
+            img.src = src;
+            imageCache[src] = img;
+        }
+    }
+}
+
 async function setCharacterPath(newPath) {
     if (!newPath || newPath === characterPath) return;
     characterPath = newPath;
@@ -183,12 +196,16 @@ function createPlayer() {
     playerEl = document.createElement("div");
     playerEl.style.width = `${tileWidth}px`;
     playerEl.style.height = `${tileWidth}px`;
-    playerEl.style.position = "absolute";
+    playerEl.style.position = "fixed";
+    playerEl.style.top = "0";
+    playerEl.style.left = "0";
     playerEl.style.backgroundSize = "contain";
     playerEl.style.backgroundPosition = "center";
     playerEl.style.backgroundRepeat = "no-repeat";
     playerEl.style.zIndex = "10";
-    worldEl.appendChild(playerEl);
+    playerEl.style.transform = "translateZ(0)";
+    playerEl.style.willChange = "transform";
+    viewportEl.appendChild(playerEl);
     updatePlayerSprite();
 }
 
@@ -202,6 +219,8 @@ function createRemotePlayer(playerId) {
     player.style.backgroundRepeat = "no-repeat";
     player.style.zIndex = "10";
     player.style.pointerEvents = "none";
+    player.style.transform = "translateZ(0)";
+    player.style.willChange = "transform";
     worldEl.appendChild(player);
     remotePlayers.set(playerId, player);
     return player;
@@ -653,8 +672,8 @@ function updatePlayerSprite() {
     const spriteName = getCurrentSpriteName();
     const src = `${characterPath}/${spriteName}${animFrame}.png`;
     playerEl.style.backgroundImage = `url(${src})`;
-    playerEl.style.left = `${Math.round(playerWorldX)}px`;
-    playerEl.style.top = `${Math.round(playerWorldY)}px`;
+    playerEl.style.left = `${Math.round(window.innerWidth / 2 - tileWidth / 2)}px`;
+    playerEl.style.top = `${Math.round(window.innerHeight / 2 - tileWidth / 2)}px`;
 }
 
 function normalizeRemoteState(entity) {
@@ -686,8 +705,8 @@ function updateRemotePlayers(players) {
         const spritePath = `${state.character}/${animation}${currentFrame}.png`;
 
         player.style.backgroundImage = `url(${spritePath})`;
-        player.style.left = `${state.position.x}px`;
-        player.style.top = `${state.position.y}px`;
+        player.style.left = `${Math.round(state.position.x)}px`;
+        player.style.top = `${Math.round(state.position.y)}px`;
     }
 
     for (const [playerId, player] of remotePlayers) {
@@ -911,6 +930,7 @@ window.addEventListener("contextmenu", (e) => e.preventDefault());
 window.addEventListener("selectstart", (e) => e.preventDefault());
 
 window.addEventListener("resize", () => {
+    if (playerEl) updatePlayerSprite();
     updateCamera();
 });
 
@@ -929,6 +949,7 @@ async function init() {
     await connectToServer();
     await discoverFrames();
     await preloadSprites();
+    preloadTiles();
     createPlayer();
     updateCamera();
     requestAnimationFrame(gameLoop);

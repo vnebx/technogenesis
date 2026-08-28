@@ -766,14 +766,8 @@ async function handleServerMessage(event) {
         syncGroundItems(message.ground_items);
         if (message.players) {
             const localData = message.players[localPlayerId];
-            if (localData) {
-                if (localData.character) {
-                    await setCharacterPath(localData.character);
-                }
-                if (localData.position) {
-                    playerWorldX = localData.position.x;
-                    playerWorldY = localData.position.y;
-                }
+            if (localData && localData.character) {
+                await setCharacterPath(localData.character);
             }
             updateRemotePlayers(message.players);
         }

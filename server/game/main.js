@@ -160,6 +160,7 @@ async function loadTileColors() {
         }
         let r = 0, g = 0, b = 0, count = 0;
         for (let i = 0; i < data.length; i += 4) {
+            if (data[i + 3] < 50) continue;
             r += data[i];
             g += data[i + 1];
             b += data[i + 2];
@@ -203,7 +204,9 @@ function createTileElement(col, row, type, zIndex = "0") {
     tile.style.left = `${Math.round(col * tileWidth) - 1}px`;
     tile.style.zIndex = zIndex;
     tile.style.pointerEvents = "none";
-    if (tileColors[type]) tile.style.backgroundColor = tileColors[type];
+    if ((type === "grass" || type === "water") && tileColors[type]) {
+        tile.style.backgroundColor = tileColors[type];
+    }
     worldEl.appendChild(tile);
     return tile;
 }

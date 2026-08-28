@@ -63,6 +63,8 @@ let lastTime = 0;
 let viewportEl = null;
 let cameraX = 0;
 let cameraY = 0;
+let worldX = 0;
+let worldY = 0;
 let worldEl = null;
 let playerEl = null;
 let coordEl = null;
@@ -196,8 +198,8 @@ function updateVisibleTiles() {
 function updateCamera() {
     cameraX = playerWorldX + tileWidth / 2 - window.innerWidth / 2;
     cameraY = playerWorldY + tileWidth / 2 - window.innerHeight / 2;
-    const worldX = Math.round(cameraX);
-    const worldY = Math.round(cameraY);
+    worldX = Math.round(cameraX);
+    worldY = Math.round(cameraY);
     worldEl.style.transform = `translate(${-worldX}px, ${-worldY}px)`;
     updateVisibleTiles();
 }
@@ -224,12 +226,14 @@ function createRemotePlayer(playerId) {
     player.style.width = `${tileWidth}px`;
     player.style.height = `${tileWidth}px`;
     player.style.position = "absolute";
+    player.style.top = "0";
+    player.style.left = "0";
     player.style.backgroundSize = "contain";
     player.style.backgroundPosition = "center";
     player.style.backgroundRepeat = "no-repeat";
     player.style.zIndex = "10";
     player.style.pointerEvents = "none";
-    worldEl.appendChild(player);
+    viewportEl.appendChild(player);
     remotePlayers.set(playerId, player);
     return player;
 }
@@ -738,8 +742,8 @@ function updateRemotePlayers(players) {
         const totalFrames = frameCounts[animation] || 1;
         const currentFrame = Math.floor(Date.now() / animInterval) % totalFrames;
         const spritePath = `${state.character}/${animation}${currentFrame}.png`;
-        const left = Math.round(state.position.x);
-        const top = Math.round(state.position.y);
+        const left = Math.round(state.position.x - worldX);
+        const top = Math.round(state.position.y - worldY);
 
         if (player.dataset.src !== spritePath) {
             player.dataset.src = spritePath;

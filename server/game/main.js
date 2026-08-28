@@ -40,7 +40,8 @@ const GROUND_ITEM_BOB_AMPLITUDE = 4;
 
 const keys = {};
 const imageCache = {};
-const frameCounts = {};
+const characterFrames = {};
+const preloadedCharacters = new Set();
 const tileElements = new Map();
 const remotePlayers = new Map();
 const remoteTargets = new Map();
@@ -81,25 +82,35 @@ function imageExists(src) {
     });
 }
 
-async function discoverFrames() {
+async function discoverFrames(character) {
+    const frames = characterFrames[character] || (characterFrames[character] = {});
     for (const name of directions) {
         let count = 0;
-        while (await imageExists(`${characterPath}/${name}${count}.png`)) {
+        while (await imageExists(`${character}/${name}${count}.png`)) {
             count++;
         }
-        frameCounts[name] = count;
+        frames[name] = count;
     }
 }
 
-async function preloadSprites() {
+function getCharacterFrames(character) {
+    return characterFrames[character] || characterFrames[characterPath] || {};
+}
+
+async function preloadSprites(character) {
+    if (preloadedCharacters.has(character)) return;
+    const frames = getCharacterFrames(character);
     for (const name of directions) {
-        for (let i = 0; i < frameCounts[name]; i++) {
-            const src = `${characterPath}/${name}${i}.png`;
+        for (let i = 0; i < (frames[name] || 0); i++) {
+            const src = `${character}/${name}${i}.png`;
+            if (imageCache[src]) continue;
             const img = new Image();
             img.src = src;
+            img.decode && img.decode().catch(() => {});
             imageCache[src] = img;
         }
     }
+    preloadedCharacters.add(character);
 }
 
 const TILE_TYPES = ["grass", "water", "oak_log", "oak_tree_leaves"];
@@ -118,11 +129,17 @@ function preloadTiles() {
 async function setCharacterPath(newPath) {
     if (!newPath || newPath === characterPath) return;
     characterPath = newPath;
-    await discoverFrames();
-    await preloadSprites();
+    await discoverFrames(characterPath);
+    await preloadSprites(characterPath);
     animFrame = 0;
     animTimer = 0;
     if (playerEl) updatePlayerSprite();
+}
+
+async function ensureRemoteCharacter(character) {
+    if (!character || preloadedCharacters.has(character)) return;
+    await discoverFrames(character);
+    await preloadSprites(character);
 }
 
 function tileKey(col, row) {
@@ -225,7 +242,7 @@ function createRemotePlayer(playerId) {
     const player = document.createElement("div");
     player.style.width = `${tileWidth}px`;
     player.style.height = `${tileWidth}px`;
-    player.style.position = "absolute";
+    player.style.position = "fixed";
     player.style.top = "0";
     player.style.left = "0";
     player.style.backgroundSize = "contain";
@@ -233,7 +250,9 @@ function createRemotePlayer(playerId) {
     player.style.backgroundRepeat = "no-repeat";
     player.style.zIndex = "10";
     player.style.pointerEvents = "none";
-    worldEl.appendChild(player);
+    player.style.transform = "translateZ(0)";
+    player.style.willChange = "transform";
+    viewportEl.appendChild(player);
     remotePlayers.set(playerId, player);
     return player;
 }
@@ -483,7 +502,7 @@ function getMovementState() {
 }
 
 function nextAnimFrame(name, current) {
-    const total = frameCounts[name];
+    const total = getCharacterFrames(characterPath)[name];
     if (!total || total <= 1) return 0;
     const next = current + 1;
     return next < total ? next : 0;
@@ -736,10 +755,14 @@ function updateRemotePlayers(players) {
         const state = normalizeRemoteState(payload);
         if (!remotePlayers.has(playerId)) createRemotePlayer(playerId);
 
+        const remoteChar = state.character || characterPath;
+        ensureRemoteCharacter(remoteChar);
+
         const rawAnimation = state.animation || "idlebackward";
-        const animation = frameCounts[rawAnimation] ? rawAnimation : "idlebackward";
+        const frames = getCharacterFrames(remoteChar);
+        const animation = frames[rawAnimation] ? rawAnimation : "idlebackward";
         const target = remoteTargets.get(playerId);
-        if (target && target.animation === animation && target.character === state.character) {
+        if (target && target.animation === animation && target.character === remoteChar) {
             target.tx = state.position.x;
             target.ty = state.position.y;
         } else {
@@ -749,7 +772,7 @@ function updateRemotePlayers(players) {
                 x: state.position.x,
                 y: state.position.y,
                 animation,
-                character: state.character || characterPath,
+                character: remoteChar,
             });
             remoteAnim.set(playerId, { frame: 0, timer: 0 });
         }
@@ -786,7 +809,7 @@ function updateRemotePlayersRender(dt) {
             anim.timer += dt * 1000;
             if (anim.timer >= animInterval) {
                 anim.timer = 0;
-                const total = frameCounts[target.animation] || 1;
+                const total = getCharacterFrames(target.character)[target.animation] || 1;
                 anim.frame = (anim.frame + 1) % (total || 1);
             }
         } else {
@@ -796,11 +819,11 @@ function updateRemotePlayersRender(dt) {
 
         const player = remotePlayers.get(playerId);
         if (!player) continue;
-        const totalFrames = frameCounts[target.animation] || 1;
+        const totalFrames = getCharacterFrames(target.character)[target.animation] || 1;
         const frame = anim.frame % (totalFrames || 1);
         const spritePath = `${target.character}/${target.animation}${frame}.png`;
-        const left = Math.round(target.x);
-        const top = Math.round(target.y);
+        const left = Math.round(target.x - cameraX);
+        const top = Math.round(target.y - cameraY);
 
         if (player.dataset.src !== spritePath) {
             player.dataset.src = spritePath;
@@ -988,9 +1011,9 @@ function gameLoop(time) {
 
     checkGroundPickup();
     updateGroundItemAnimation();
-    updateRemotePlayersRender(dt);
     updatePlayerSprite();
     updateCamera();
+    updateRemotePlayersRender(dt);
     updateCoords();
     sendPlayerUpdate();
     requestAnimationFrame(gameLoop);
@@ -1048,8 +1071,8 @@ async function init() {
     createInventoryUI();
     await fetchLocalPlayerData();
     await connectToServer();
-    await discoverFrames();
-    await preloadSprites();
+    await discoverFrames(characterPath);
+    await preloadSprites(characterPath);
     preloadTiles();
     createPlayer();
     updateCamera();

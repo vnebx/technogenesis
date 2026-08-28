@@ -161,22 +161,31 @@ function ensureTile(col, row) {
 }
 
 function updateVisibleTiles() {
-    const margin = 2;
-    const startCol = Math.floor(cameraX / tileWidth) - margin;
-    const endCol = Math.ceil((cameraX + window.innerWidth) / tileWidth) + margin;
-    const startRow = Math.floor(cameraY / tileWidth) - margin;
-    const endRow = Math.ceil((cameraY + window.innerHeight) / tileWidth) + margin;
+    const createMargin = 3;
+    const keepMargin = 8;
+    const startCol = Math.floor(cameraX / tileWidth) - createMargin;
+    const endCol = Math.ceil((cameraX + window.innerWidth) / tileWidth) + createMargin;
+    const startRow = Math.floor(cameraY / tileWidth) - createMargin;
+    const endRow = Math.ceil((cameraY + window.innerHeight) / tileWidth) + createMargin;
 
-    const needed = new Set();
+    const keepStartCol = Math.floor(cameraX / tileWidth) - keepMargin;
+    const keepEndCol = Math.ceil((cameraX + window.innerWidth) / tileWidth) + keepMargin;
+    const keepStartRow = Math.floor(cameraY / tileWidth) - keepMargin;
+    const keepEndRow = Math.ceil((cameraY + window.innerHeight) / tileWidth) + keepMargin;
+
+    const viewKey = (col, row) => (col >= keepStartCol && col <= keepEndCol && row >= keepStartRow && row <= keepEndRow);
+
     for (let row = startRow; row <= endRow; row++) {
         for (let col = startCol; col <= endCol; col++) {
-            needed.add(tileKey(col, row));
             ensureTile(col, row);
         }
     }
 
     for (const [key, entry] of tileElements) {
-        if (!needed.has(key)) {
+        const [colStr, rowStr] = key.split(",");
+        const col = parseInt(colStr, 10);
+        const row = parseInt(rowStr, 10);
+        if (!viewKey(col, row)) {
             if (entry.base) entry.base.remove();
             if (entry.overlay) entry.overlay.remove();
             tileElements.delete(key);

@@ -119,6 +119,7 @@ async function preloadSprites(character) {
 }
 
 const TILE_TYPES = ["grass", "water", "oak_log", "oak_tree_leaves"];
+const tileColors = {};
 
 function preloadTiles() {
     for (const type of TILE_TYPES) {
@@ -127,6 +128,44 @@ function preloadTiles() {
             const img = new Image();
             img.src = src;
             imageCache[src] = img;
+        }
+    }
+}
+
+function loadImage(src) {
+    return new Promise((resolve) => {
+        const img = new Image();
+        img.onload = () => resolve(img);
+        img.onerror = () => resolve(null);
+        img.src = src;
+    });
+}
+
+async function loadTileColors() {
+    const canvas = document.createElement("canvas");
+    const ctx = canvas.getContext("2d");
+    for (const type of TILE_TYPES) {
+        const img = await loadImage(`assets/tiles/${type}.png`);
+        if (!img) continue;
+        canvas.width = img.naturalWidth;
+        canvas.height = img.naturalHeight;
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+        ctx.drawImage(img, 0, 0);
+        let data;
+        try {
+            data = ctx.getImageData(0, 0, canvas.width, canvas.height).data;
+        } catch (e) {
+            continue;
+        }
+        let r = 0, g = 0, b = 0, count = 0;
+        for (let i = 0; i < data.length; i += 4) {
+            r += data[i];
+            g += data[i + 1];
+            b += data[i + 2];
+            count++;
+        }
+        if (count > 0) {
+            tileColors[type] = `rgb(${Math.round(r / count)}, ${Math.round(g / count)}, ${Math.round(b / count)})`;
         }
     }
 }
@@ -163,6 +202,7 @@ function createTileElement(col, row, type, zIndex = "0") {
     tile.style.left = `${Math.round(col * tileWidth) - 1}px`;
     tile.style.zIndex = zIndex;
     tile.style.pointerEvents = "none";
+    if (tileColors[type]) tile.style.backgroundColor = tileColors[type];
     worldEl.appendChild(tile);
     return tile;
 }
@@ -827,8 +867,8 @@ function updateRemotePlayersRender(dt) {
         const totalFrames = getCharacterFrames(target.character)[target.animation] || 1;
         const frame = anim.frame % (totalFrames || 1);
         const spritePath = `${target.character}/${target.animation}${frame}.png`;
-        const left = Math.round(target.x) - Math.round(cameraX);
-        const top = Math.round(target.y) - Math.round(cameraY);
+        const left = Math.round((Math.round(target.x) - Math.round(cameraX)) * scaleX) / scaleX;
+        const top = Math.round((Math.round(target.y) - Math.round(cameraY)) * scaleY) / scaleY;
 
         if (player.dataset.src !== spritePath) {
             player.dataset.src = spritePath;
@@ -1134,6 +1174,7 @@ async function init() {
     await discoverFrames(characterPath);
     await preloadSprites(characterPath);
     preloadTiles();
+    await loadTileColors();
     createPlayer();
     applyCanvasTransform();
     updateCamera();

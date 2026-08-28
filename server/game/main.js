@@ -118,11 +118,11 @@ function createTileElement(col, row, type, zIndex = "0") {
     tile.className = "tile";
     tile.src = `assets/tiles/${type}.png`;
     tile.style.display = "block";
-    tile.style.width = `${tileWidth}px`;
-    tile.style.height = `${tileWidth}px`;
+    tile.style.width = `${tileWidth + 2}px`;
+    tile.style.height = `${tileWidth + 2}px`;
     tile.style.position = "absolute";
-    tile.style.top = `${Math.round(row * tileWidth)}px`;
-    tile.style.left = `${Math.round(col * tileWidth)}px`;
+    tile.style.top = `${Math.round(row * tileWidth) - 1}px`;
+    tile.style.left = `${Math.round(col * tileWidth) - 1}px`;
     tile.style.zIndex = zIndex;
     tile.style.pointerEvents = "none";
     worldEl.appendChild(tile);
@@ -187,7 +187,7 @@ function createPlayer() {
     playerEl.style.backgroundSize = "contain";
     playerEl.style.backgroundPosition = "center";
     playerEl.style.backgroundRepeat = "no-repeat";
-    playerEl.style.zIndex = "2";
+    playerEl.style.zIndex = "10";
     worldEl.appendChild(playerEl);
     updatePlayerSprite();
 }
@@ -200,7 +200,7 @@ function createRemotePlayer(playerId) {
     player.style.backgroundSize = "contain";
     player.style.backgroundPosition = "center";
     player.style.backgroundRepeat = "no-repeat";
-    player.style.zIndex = "2";
+    player.style.zIndex = "10";
     player.style.pointerEvents = "none";
     worldEl.appendChild(player);
     remotePlayers.set(playerId, player);

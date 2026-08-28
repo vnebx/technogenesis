@@ -988,6 +988,7 @@ function gameLoop(time) {
 
     checkGroundPickup();
     updateGroundItemAnimation();
+    updateRemotePlayersRender(dt);
     updatePlayerSprite();
     updateCamera();
     updateCoords();

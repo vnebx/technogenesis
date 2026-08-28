@@ -17,6 +17,8 @@ body, html {
     overflow: hidden;
     background-color: #000;
     font-family: 'Silkscreen', monospace;
+    touch-action: none;
+    overscroll-behavior: none;
 }
 
 :root {

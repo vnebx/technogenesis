@@ -1024,6 +1024,10 @@ window.addEventListener("keydown", (e) => {
     const key = e.key.toLowerCase();
     keys[key] = true;
 
+    if ((e.ctrlKey || e.metaKey) && ["+", "-", "=", "0"].includes(e.key)) {
+        e.preventDefault();
+    }
+
     if (key === "e") {
         inventoryVisible = !inventoryVisible;
         if (inventoryEl) {
@@ -1040,6 +1044,23 @@ window.addEventListener("keyup", (e) => {
     keys[e.key.toLowerCase()] = false;
 });
 
+window.addEventListener("wheel", (e) => {
+    if (e.ctrlKey || e.metaKey) e.preventDefault();
+}, { passive: false });
+
+function clearMovementKeys() {
+    keys["a"] = false;
+    keys["d"] = false;
+    keys["w"] = false;
+    keys["s"] = false;
+    keys["f"] = false;
+}
+
+window.addEventListener("blur", clearMovementKeys);
+document.addEventListener("visibilitychange", () => {
+    if (document.hidden) clearMovementKeys();
+});
+
 window.addEventListener("mousedown", (e) => {
     if (e.button === 0) {
         if (cursorItem && inventoryEl && !inventoryEl.contains(e.target) && e.target !== cursorItemEl) {
@@ -1052,6 +1073,8 @@ window.addEventListener("mousedown", (e) => {
 window.addEventListener("dragstart", (e) => e.preventDefault());
 window.addEventListener("contextmenu", (e) => e.preventDefault());
 window.addEventListener("selectstart", (e) => e.preventDefault());
+window.addEventListener("gesturestart", (e) => e.preventDefault());
+window.addEventListener("gesturechange", (e) => e.preventDefault());
 
 window.addEventListener("resize", () => {
     if (playerEl) updatePlayerSprite();

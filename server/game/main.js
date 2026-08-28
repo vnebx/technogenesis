@@ -64,8 +64,11 @@ let useTimer = 0;
 let useCooldownTimer = 0;
 let lastTime = 0;
 let viewportEl = null;
-let zoomBase = null;
-let appliedZoomScale = "";
+let appEl = null;
+let GAME_W = 0;
+let GAME_H = 0;
+let scaleX = 1;
+let scaleY = 1;
 let cameraX = 0;
 let cameraY = 0;
 let worldEl = null;
@@ -185,14 +188,14 @@ function updateVisibleTiles() {
     const createMargin = 3;
     const keepMargin = 8;
     const startCol = Math.floor(cameraX / tileWidth) - createMargin;
-    const endCol = Math.ceil((cameraX + window.innerWidth) / tileWidth) + createMargin;
+    const endCol = Math.ceil((cameraX + GAME_W) / tileWidth) + createMargin;
     const startRow = Math.floor(cameraY / tileWidth) - createMargin;
-    const endRow = Math.ceil((cameraY + window.innerHeight) / tileWidth) + createMargin;
+    const endRow = Math.ceil((cameraY + GAME_H) / tileWidth) + createMargin;
 
     const keepStartCol = Math.floor(cameraX / tileWidth) - keepMargin;
-    const keepEndCol = Math.ceil((cameraX + window.innerWidth) / tileWidth) + keepMargin;
+    const keepEndCol = Math.ceil((cameraX + GAME_W) / tileWidth) + keepMargin;
     const keepStartRow = Math.floor(cameraY / tileWidth) - keepMargin;
-    const keepEndRow = Math.ceil((cameraY + window.innerHeight) / tileWidth) + keepMargin;
+    const keepEndRow = Math.ceil((cameraY + GAME_H) / tileWidth) + keepMargin;
 
     const viewKey = (col, row) => (col >= keepStartCol && col <= keepEndCol && row >= keepStartRow && row <= keepEndRow);
 
@@ -215,8 +218,8 @@ function updateVisibleTiles() {
 }
 
 function updateCamera() {
-    cameraX = playerWorldX + tileWidth / 2 - window.innerWidth / 2;
-    cameraY = playerWorldY + tileWidth / 2 - window.innerHeight / 2;
+    cameraX = playerWorldX + tileWidth / 2 - GAME_W / 2;
+    cameraY = playerWorldY + tileWidth / 2 - GAME_H / 2;
     const worldX = Math.round(cameraX);
     const worldY = Math.round(cameraY);
     worldEl.style.transform = `translate(${-worldX}px, ${-worldY}px)`;
@@ -262,7 +265,7 @@ function createRemotePlayer(playerId) {
 function createHud() {
     coordEl = document.createElement("div");
     coordEl.id = "coords";
-    document.body.appendChild(coordEl);
+    appEl.appendChild(coordEl);
     updateCoords();
 }
 
@@ -403,12 +406,12 @@ function showItemTooltip(index, slotEl) {
     tooltipEl.textContent = item.id.split("_").join(" ");
     tooltipEl.style.display = "block";
     const rect = slotEl.getBoundingClientRect();
-    let left = rect.left;
-    let top = rect.top - tooltipEl.offsetHeight - 4;
+    let left = rect.left / scaleX;
+    let top = rect.top / scaleY - (tooltipEl.offsetHeight / scaleY) - 4;
     if (top < 0) {
-        top = rect.bottom + 4;
+        top = rect.bottom / scaleY + 4;
     }
-    const maxLeft = window.innerWidth - tooltipEl.offsetWidth;
+    const maxLeft = GAME_W - tooltipEl.offsetWidth;
     left = Math.max(0, Math.min(left, maxLeft));
     tooltipEl.style.left = `${left}px`;
     tooltipEl.style.top = `${top}px`;
@@ -435,12 +438,12 @@ function createInventoryUI() {
     cursorCount.className = "count";
     cursorItemEl.appendChild(cursorImg);
     cursorItemEl.appendChild(cursorCount);
-    document.body.appendChild(cursorItemEl);
+    appEl.appendChild(cursorItemEl);
 
     tooltipEl = document.createElement("div");
     tooltipEl.id = "item-tooltip";
     tooltipEl.style.display = "none";
-    document.body.appendChild(tooltipEl);
+    appEl.appendChild(tooltipEl);
 
     for (let i = 0; i < INVENTORY_SIZE; i++) {
         const slot = document.createElement("div");
@@ -463,8 +466,8 @@ function createInventoryUI() {
                 grabHalfFromSlot(index);
             }
             if (cursorItemEl) {
-                cursorItemEl.style.left = `${e.clientX}px`;
-                cursorItemEl.style.top = `${e.clientY}px`;
+                cursorItemEl.style.left = `${e.clientX / scaleX}px`;
+                cursorItemEl.style.top = `${e.clientY / scaleY}px`;
             }
         });
 
@@ -474,12 +477,12 @@ function createInventoryUI() {
 
     document.addEventListener("mousemove", (e) => {
         if (cursorItemEl) {
-            cursorItemEl.style.left = `${e.clientX}px`;
-            cursorItemEl.style.top = `${e.clientY}px`;
+            cursorItemEl.style.left = `${e.clientX / scaleX}px`;
+            cursorItemEl.style.top = `${e.clientY / scaleY}px`;
         }
     });
 
-    document.body.appendChild(inventoryEl);
+    appEl.appendChild(inventoryEl);
     renderInventory();
 }
 
@@ -723,8 +726,8 @@ function updatePlayerSprite() {
         playerEl.dataset.src = src;
         playerEl.style.backgroundImage = `url(${src})`;
     }
-    const left = Math.round(window.innerWidth / 2 - tileWidth / 2);
-    const top = Math.round(window.innerHeight / 2 - tileWidth / 2);
+    const left = Math.round(GAME_W / 2 - tileWidth / 2);
+    const top = Math.round(GAME_H / 2 - tileWidth / 2);
     if (playerEl.dataset.left !== String(left)) {
         playerEl.dataset.left = String(left);
         playerEl.style.left = `${left}px`;
@@ -967,19 +970,11 @@ function connectToServer() {
         });
 }
 
-function applyZoomCompensation() {
-    if (!viewportEl) return;
-    if (zoomBase === null) zoomBase = window.devicePixelRatio || 1;
-    const factor = (window.devicePixelRatio || 1) / zoomBase;
-    let scale = "";
-    if (Math.abs(factor - 1) > 0.002) {
-        scale = `scale(${1 / factor})`;
-    }
-    if (scale !== appliedZoomScale) {
-        appliedZoomScale = scale;
-        viewportEl.style.transform = scale;
-        viewportEl.style.transformOrigin = "center center";
-    }
+function applyCanvasTransform() {
+    if (!appEl || GAME_W === 0 || GAME_H === 0) return;
+    scaleX = window.innerWidth / GAME_W;
+    scaleY = window.innerHeight / GAME_H;
+    appEl.style.transform = `scale(${scaleX}, ${scaleY})`;
 }
 
 function gameLoop(time) {
@@ -988,7 +983,7 @@ function gameLoop(time) {
 
     if (!document.hasFocus()) clearMovementKeys();
 
-    applyZoomCompensation();
+    applyCanvasTransform();
 
     const movement = getMovementState();
     const newDirection = movement.direction;
@@ -1101,14 +1096,32 @@ window.addEventListener("gesturestart", (e) => e.preventDefault());
 window.addEventListener("gesturechange", (e) => e.preventDefault());
 
 window.addEventListener("resize", () => {
+    applyCanvasTransform();
     if (playerEl) updatePlayerSprite();
     updateCamera();
 });
 
 async function init() {
+    GAME_W = window.innerWidth;
+    GAME_H = window.innerHeight;
+
+    appEl = document.createElement("div");
+    appEl.id = "app";
+    appEl.style.width = `${GAME_W}px`;
+    appEl.style.height = `${GAME_H}px`;
+    appEl.style.position = "fixed";
+    appEl.style.top = "0";
+    appEl.style.left = "0";
+    appEl.style.transformOrigin = "0 0";
+    appEl.style.background = "#000";
+    appEl.style.overflow = "hidden";
+    document.body.appendChild(appEl);
+
     viewportEl = document.createElement("div");
     viewportEl.id = "viewport";
-    document.body.appendChild(viewportEl);
+    viewportEl.style.width = `${GAME_W}px`;
+    viewportEl.style.height = `${GAME_H}px`;
+    appEl.appendChild(viewportEl);
 
     worldEl = document.createElement("div");
     worldEl.id = "world";
@@ -1122,6 +1135,7 @@ async function init() {
     await preloadSprites(characterPath);
     preloadTiles();
     createPlayer();
+    applyCanvasTransform();
     updateCamera();
     requestAnimationFrame(gameLoop);
 }

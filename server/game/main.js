@@ -43,6 +43,8 @@ const imageCache = {};
 const frameCounts = {};
 const tileElements = new Map();
 const remotePlayers = new Map();
+const remoteTargets = new Map();
+const remoteAnim = new Map();
 const removedTrees = new Set();
 const treeUseCounts = new Map();
 let groundItems = [];
@@ -63,8 +65,6 @@ let lastTime = 0;
 let viewportEl = null;
 let cameraX = 0;
 let cameraY = 0;
-let worldX = 0;
-let worldY = 0;
 let worldEl = null;
 let playerEl = null;
 let coordEl = null;
@@ -198,8 +198,8 @@ function updateVisibleTiles() {
 function updateCamera() {
     cameraX = playerWorldX + tileWidth / 2 - window.innerWidth / 2;
     cameraY = playerWorldY + tileWidth / 2 - window.innerHeight / 2;
-    worldX = Math.round(cameraX);
-    worldY = Math.round(cameraY);
+    const worldX = Math.round(cameraX);
+    const worldY = Math.round(cameraY);
     worldEl.style.transform = `translate(${-worldX}px, ${-worldY}px)`;
     updateVisibleTiles();
 }
@@ -233,7 +233,7 @@ function createRemotePlayer(playerId) {
     player.style.backgroundRepeat = "no-repeat";
     player.style.zIndex = "10";
     player.style.pointerEvents = "none";
-    viewportEl.appendChild(player);
+    worldEl.appendChild(player);
     remotePlayers.set(playerId, player);
     return player;
 }
@@ -734,16 +734,73 @@ function updateRemotePlayers(players) {
         knownIds.add(playerId);
 
         const state = normalizeRemoteState(payload);
-        let player = remotePlayers.get(playerId);
-        if (!player) player = createRemotePlayer(playerId);
+        if (!remotePlayers.has(playerId)) createRemotePlayer(playerId);
 
         const rawAnimation = state.animation || "idlebackward";
         const animation = frameCounts[rawAnimation] ? rawAnimation : "idlebackward";
-        const totalFrames = frameCounts[animation] || 1;
-        const currentFrame = Math.floor(Date.now() / animInterval) % totalFrames;
-        const spritePath = `${state.character}/${animation}${currentFrame}.png`;
-        const left = Math.round(state.position.x - worldX);
-        const top = Math.round(state.position.y - worldY);
+        const target = remoteTargets.get(playerId);
+        if (target && target.animation === animation && target.character === state.character) {
+            target.tx = state.position.x;
+            target.ty = state.position.y;
+        } else {
+            remoteTargets.set(playerId, {
+                tx: state.position.x,
+                ty: state.position.y,
+                x: state.position.x,
+                y: state.position.y,
+                animation,
+                character: state.character || characterPath,
+            });
+            remoteAnim.set(playerId, { frame: 0, timer: 0 });
+        }
+    }
+
+    for (const [playerId, player] of remotePlayers) {
+        if (!knownIds.has(playerId)) {
+            player.remove();
+            remotePlayers.delete(playerId);
+            remoteTargets.delete(playerId);
+            remoteAnim.delete(playerId);
+        }
+    }
+}
+
+function updateRemotePlayersRender(dt) {
+    for (const [playerId, target] of remoteTargets) {
+        const anim = remoteAnim.get(playerId);
+        if (!anim) continue;
+
+        const dx = target.tx - target.x;
+        const dy = target.ty - target.y;
+        const dist = Math.hypot(dx, dy);
+        if (dist > 0.5) {
+            const step = Math.min(dist, moveSpeed * dt);
+            target.x += (dx / dist) * step;
+            target.y += (dy / dist) * step;
+        } else {
+            target.x = target.tx;
+            target.y = target.ty;
+        }
+
+        if (target.animation && target.animation !== "idle" && !target.animation.startsWith("idle")) {
+            anim.timer += dt * 1000;
+            if (anim.timer >= animInterval) {
+                anim.timer = 0;
+                const total = frameCounts[target.animation] || 1;
+                anim.frame = (anim.frame + 1) % (total || 1);
+            }
+        } else {
+            anim.frame = 0;
+            anim.timer = 0;
+        }
+
+        const player = remotePlayers.get(playerId);
+        if (!player) continue;
+        const totalFrames = frameCounts[target.animation] || 1;
+        const frame = anim.frame % (totalFrames || 1);
+        const spritePath = `${target.character}/${target.animation}${frame}.png`;
+        const left = Math.round(target.x);
+        const top = Math.round(target.y);
 
         if (player.dataset.src !== spritePath) {
             player.dataset.src = spritePath;
@@ -756,13 +813,6 @@ function updateRemotePlayers(players) {
         if (player.dataset.top !== String(top)) {
             player.dataset.top = String(top);
             player.style.top = `${top}px`;
-        }
-    }
-
-    for (const [playerId, player] of remotePlayers) {
-        if (!knownIds.has(playerId)) {
-            player.remove();
-            remotePlayers.delete(playerId);
         }
     }
 }

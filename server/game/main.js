@@ -47,6 +47,7 @@ const removedTrees = new Set();
 const treeUseCounts = new Map();
 let groundItems = [];
 const groundItemEls = new Map();
+const pendingPickups = new Set();
 
 let seed = [];
 let playerWorldX = 0;
@@ -559,6 +560,12 @@ function renderGroundItems() {
     const seen = new Set();
     const size = groundItemPixelSize();
     for (const item of groundItems) {
+        if (pendingPickups.has(item.id)) {
+            seen.add(item.id);
+            const el = groundItemEls.get(item.id);
+            if (el) el.style.display = "none";
+            continue;
+        }
         seen.add(item.id);
         let el = groundItemEls.get(item.id);
         if (!el) {
@@ -571,6 +578,7 @@ function renderGroundItems() {
             worldEl.appendChild(el);
             groundItemEls.set(item.id, el);
         }
+        el.style.display = "block";
         el.src = getItemTexturePath(item.item);
         el.style.width = `${size}px`;
         el.style.height = `${size}px`;
@@ -599,6 +607,12 @@ function updateGroundItemAnimation() {
 
 function syncGroundItems(list) {
     groundItems = Array.isArray(list) ? list : [];
+    const present = new Set(groundItems.map((g) => g.id));
+    for (const id of [...pendingPickups]) {
+        if (!present.has(id)) {
+            pendingPickups.delete(id);
+        }
+    }
     renderGroundItems();
 }
 
@@ -634,12 +648,14 @@ function checkGroundPickup() {
     const playerBottom = playerWorldY + tileWidth;
     let picked = false;
     for (const item of [...groundItems]) {
+        if (pendingPickups.has(item.id)) continue;
         const itemLeft = item.x - half;
         const itemTop = item.y - half;
         const itemRight = item.x + half;
         const itemBottom = item.y + half;
         if (playerRight > itemLeft && playerLeft < itemRight && playerBottom > itemTop && playerTop < itemBottom) {
             addItem(item.item, item.count);
+            pendingPickups.add(item.id);
             sendPickupGroundItem(item.id);
             groundItems = groundItems.filter((g) => g.id !== item.id);
             picked = true;

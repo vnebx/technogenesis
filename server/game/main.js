@@ -969,6 +969,8 @@ function gameLoop(time) {
     const dt = lastTime ? (time - lastTime) / 1000 : 0;
     lastTime = time;
 
+    if (!document.hasFocus()) clearMovementKeys();
+
     const movement = getMovementState();
     const newDirection = movement.direction;
     if (newDirection !== direction) {
@@ -1059,6 +1061,9 @@ function clearMovementKeys() {
 window.addEventListener("blur", clearMovementKeys);
 document.addEventListener("visibilitychange", () => {
     if (document.hidden) clearMovementKeys();
+});
+window.addEventListener("mouseleave", () => {
+    if (!document.hasFocus()) clearMovementKeys();
 });
 
 window.addEventListener("mousedown", (e) => {

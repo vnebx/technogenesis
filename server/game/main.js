@@ -715,6 +715,7 @@ function getPlayerSnapshot() {
     const spriteName = getCurrentSpriteName();
     return {
         character: characterPath,
+        position: { x: playerWorldX, y: playerWorldY },
         inventory: playerInventory.map((slot) => (slot ? { id: slot.id, count: slot.count } : null)),
         animation: spriteName,
     };
@@ -741,8 +742,14 @@ async function handleServerMessage(event) {
         syncGroundItems(message.ground_items);
         if (message.players) {
             const localData = message.players[localPlayerId];
-            if (localData && localData.character) {
-                await setCharacterPath(localData.character);
+            if (localData) {
+                if (localData.character) {
+                    await setCharacterPath(localData.character);
+                }
+                if (localData.position) {
+                    playerWorldX = localData.position.x;
+                    playerWorldY = localData.position.y;
+                }
             }
             updateRemotePlayers(message.players);
         }
@@ -759,8 +766,14 @@ async function handleServerMessage(event) {
         syncGroundItems(message.ground_items);
         if (message.players) {
             const localData = message.players[localPlayerId];
-            if (localData && localData.character) {
-                await setCharacterPath(localData.character);
+            if (localData) {
+                if (localData.character) {
+                    await setCharacterPath(localData.character);
+                }
+                if (localData.position) {
+                    playerWorldX = localData.position.x;
+                    playerWorldY = localData.position.y;
+                }
             }
             updateRemotePlayers(message.players);
         }

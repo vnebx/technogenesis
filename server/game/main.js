@@ -868,8 +868,8 @@ function updateRemotePlayersRender(dt) {
         const totalFrames = getCharacterFrames(target.character)[target.animation] || 1;
         const frame = anim.frame % (totalFrames || 1);
         const spritePath = `${target.character}/${target.animation}${frame}.png`;
-        const left = Math.round((Math.round(target.x) - Math.round(cameraX)) * scaleX) / scaleX;
-        const top = Math.round((Math.round(target.y) - Math.round(cameraY)) * scaleY) / scaleY;
+        const left = Math.round((target.x - Math.round(cameraX)) * scaleX) / scaleX;
+        const top = Math.round((target.y - Math.round(cameraY)) * scaleY) / scaleY;
 
         if (player.dataset.src !== spritePath) {
             player.dataset.src = spritePath;

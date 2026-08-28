@@ -64,6 +64,8 @@ let useTimer = 0;
 let useCooldownTimer = 0;
 let lastTime = 0;
 let viewportEl = null;
+let zoomBase = null;
+let appliedZoomScale = "";
 let cameraX = 0;
 let cameraY = 0;
 let worldEl = null;
@@ -965,11 +967,28 @@ function connectToServer() {
         });
 }
 
+function applyZoomCompensation() {
+    if (!viewportEl) return;
+    if (zoomBase === null) zoomBase = window.devicePixelRatio || 1;
+    const factor = (window.devicePixelRatio || 1) / zoomBase;
+    let scale = "";
+    if (Math.abs(factor - 1) > 0.002) {
+        scale = `scale(${1 / factor})`;
+    }
+    if (scale !== appliedZoomScale) {
+        appliedZoomScale = scale;
+        viewportEl.style.transform = scale;
+        viewportEl.style.transformOrigin = "center center";
+    }
+}
+
 function gameLoop(time) {
     const dt = lastTime ? (time - lastTime) / 1000 : 0;
     lastTime = time;
 
     if (!document.hasFocus()) clearMovementKeys();
+
+    applyZoomCompensation();
 
     const movement = getMovementState();
     const newDirection = movement.direction;

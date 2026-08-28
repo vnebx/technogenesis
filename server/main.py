@@ -27,6 +27,7 @@ SECRET_KEY = os.environ.get("SECRET_KEY") or secrets.token_hex(32)
 CONNECTED_CLIENTS = set()
 PLAYER_CONNECTIONS = {}
 SERVER_STATE = {"seed": None}
+LIVE_PLAYER_STATE = {}
 removed_trees = set()
 ground_items = []
 WS_SEND_LOCKS = {}
@@ -248,6 +249,10 @@ def unregister_player_connection(player_id, websocket):
 def collect_active_players_snapshot():
     players = {}
     for player_id in PLAYER_CONNECTIONS:
+        live = LIVE_PLAYER_STATE.get(player_id)
+        if live is not None:
+            players[player_id] = live
+            continue
         player = load_player(player_id)
         if player is not None:
             players[player_id] = build_player_state(player_id, player)
@@ -415,7 +420,9 @@ async def game(request):
         path = os.path.join(path, "index.html")
     if not os.path.isfile(path):
         return web.HTTPNotFound()
-    return web.FileResponse(path)
+    response = web.FileResponse(path)
+    response.headers["Cache-Control"] = "no-store, max-age=0"
+    return response
 
 
 async def websocket_handler(request):
@@ -449,6 +456,9 @@ async def websocket_handler(request):
         return websocket
 
     CONNECTED_CLIENTS.add(websocket)
+    connected_player = load_player(player_id)
+    if connected_player is not None:
+        LIVE_PLAYER_STATE[player_id] = build_player_state(player_id, connected_player)
     try:
         welcome = {
             "type": "welcome",
@@ -495,6 +505,7 @@ async def websocket_handler(request):
                     "inventory": inventory,
                 }
                 save_player(player_id, player)
+                LIVE_PLAYER_STATE[player_id] = build_player_state(player_id, player)
                 await broadcast_world_state()
                 await safe_send(websocket, json.dumps({"ok": True, "type": "sync"}))
             elif operation == "remove_tree":
@@ -573,6 +584,8 @@ async def websocket_handler(request):
         CONNECTED_CLIENTS.discard(websocket)
         unregister_player_connection(player_id, websocket)
         WS_SEND_LOCKS.pop(id(websocket), None)
+        if not active_player_connections(player_id):
+            LIVE_PLAYER_STATE.pop(player_id, None)
     return websocket
 
 

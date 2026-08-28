@@ -794,6 +794,10 @@ function fetchLocalPlayerData() {
                 playerInventory = Array(INVENTORY_SIZE).fill(null);
             }
             renderInventory();
+            if (localData.position) {
+                playerWorldX = Number(localData.position.x) || 0;
+                playerWorldY = Number(localData.position.y) || 0;
+            }
             if (localData.character) {
                 return setCharacterPath(localData.character);
             }

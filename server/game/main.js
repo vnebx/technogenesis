@@ -69,6 +69,7 @@ let GAME_W = 0;
 let GAME_H = 0;
 let scaleX = 1;
 let scaleY = 1;
+let dprRef = null;
 let cameraX = 0;
 let cameraY = 0;
 let worldEl = null;
@@ -1011,9 +1012,25 @@ function connectToServer() {
 }
 
 function applyCanvasTransform() {
-    if (!appEl || GAME_W === 0 || GAME_H === 0) return;
-    scaleX = window.innerWidth / GAME_W;
-    scaleY = window.innerHeight / GAME_H;
+    if (!appEl) return;
+    const dpr = window.devicePixelRatio || 1;
+    if (dprRef === null) dprRef = dpr;
+
+    const newW = Math.round(window.innerWidth * dpr / dprRef);
+    const newH = Math.round(window.innerHeight * dpr / dprRef);
+    if (GAME_W === 0 || newW !== GAME_W || newH !== GAME_H) {
+        GAME_W = newW;
+        GAME_H = newH;
+        appEl.style.width = `${GAME_W}px`;
+        appEl.style.height = `${GAME_H}px`;
+        if (viewportEl) {
+            viewportEl.style.width = `${GAME_W}px`;
+            viewportEl.style.height = `${GAME_H}px`;
+        }
+    }
+
+    scaleX = dprRef / dpr;
+    scaleY = dprRef / dpr;
     appEl.style.transform = `scale(${scaleX}, ${scaleY})`;
 }
 

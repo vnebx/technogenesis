@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Technogenesis - Login</title>
+    <title>Technogenesis - Join server</title>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Silkscreen:wght@400;700&display=swap" rel="stylesheet">
@@ -37,6 +37,10 @@
             box-shadow: 5px 5px 0 rgba(0, 0, 0, 0.6);
             padding: 1.5rem;
         }
+        h2 {
+            font-size: 0.95rem;
+            margin-bottom: 0.75rem;
+        }
         label {
             display: block;
             font-size: 0.75rem;
@@ -54,10 +58,7 @@
             font-family: 'Silkscreen', monospace;
             margin-bottom: 1rem;
         }
-        input:focus {
-            outline: none;
-            border-color: #58a6ff;
-        }
+        input:focus { outline: none; border-color: #58a6ff; }
         button {
             width: 100%;
             padding: 0.65rem;
@@ -82,16 +83,11 @@
             font-size: 0.75rem;
             line-height: 1.6;
         }
-        .server-note {
-            background: #1f6feb22;
-            border: 2px solid #1f6feb;
-            color: #58a6ff;
-            padding: 0.6rem 0.9rem;
-            border-radius: 0;
-            box-shadow: 3px 3px 0 rgba(0, 0, 0, 0.6);
-            margin-bottom: 1rem;
+        .hint {
+            color: #8b949e;
             font-size: 0.75rem;
-            text-align: center;
+            line-height: 1.6;
+            margin-bottom: 1rem;
         }
         .switch {
             text-align: center;
@@ -100,10 +96,7 @@
             color: #8b949e;
             line-height: 1.8;
         }
-        .switch a {
-            color: #58a6ff;
-            text-decoration: none;
-        }
+        .switch a { color: #58a6ff; text-decoration: none; }
         .switch a:hover { text-decoration: underline; }
     </style>
 </head>
@@ -115,38 +108,22 @@
         <div class="error">{{ error }}</div>
         {% endif %}
 
-        {% if server_name %}
-        <div class="server-note">Joining server: <strong>{{ server_name }}</strong></div>
-        {% elif status == 'missing' %}
-        <div class="error">That server does not exist.</div>
-        {% endif %}
-
         <div class="panel">
-            <form method="POST" action="/login">
-                <input type="hidden" name="server" value="{{ server or '' }}">
-                <input type="hidden" name="next" value="{{ next or '' }}">
-
-                <label for="username">Username</label>
-                <input type="text" id="username" name="username" required autocomplete="username"
-                       autocapitalize="off" autocorrect="off" spellcheck="false">
-
-                <label for="password">Password</label>
-                <input type="password" id="password" name="password" required autocomplete="current-password">
-
-                {% if require_server_password %}
-                <label for="server_password">Server password</label>
-                <input type="password" id="server_password" name="server_password" required autocomplete="off"
-                       placeholder="Password">
-                {% endif %}
-
-                <button type="submit">Sign In</button>
-            </form>
+            {% if singleplayer %}
+                <h2>Singleplayer world</h2>
+                <p class="hint">This singleplayer world belongs to another player, so you can't join it.</p>
+                <p class="switch"><a href="/">Back to menu</a></p>
+            {% else %}
+                <h2>Join {{ server_name }}</h2>
+                <p class="hint">This server is private. Enter its password to join.</p>
+                <form method="POST" action="/join/{{ server_id }}">
+                    <label for="password">Server password</label>
+                    <input type="password" id="password" name="password" required autocomplete="off">
+                    <button type="submit">Join server</button>
+                </form>
+                <p class="switch"><a href="/multiplayer">Back to servers</a></p>
+            {% endif %}
         </div>
-
-        <p class="switch">
-            No account?
-            <a href="/register{% if server %}?server={{ server }}{% endif %}{% if next %}&next={{ next }}{% endif %}">Register</a>
-        </p>
     </div>
 </body>
 </html>

@@ -4,10 +4,13 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Technogenesis - Register</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Silkscreen:wght@400;700&display=swap" rel="stylesheet">
     <style>
         * { box-sizing: border-box; margin: 0; padding: 0; }
         body {
-            font-family: system-ui, sans-serif;
+            font-family: 'Silkscreen', monospace;
             background: #0d1117;
             color: #e6edf3;
             min-height: 100vh;
@@ -25,27 +28,30 @@
             margin-bottom: 2rem;
             font-size: 1.75rem;
             letter-spacing: 0.05em;
+            text-shadow: 3px 3px 0 #000;
         }
         .panel {
             background: #161b22;
-            border: 1px solid #30363d;
-            border-radius: 8px;
+            border: 3px solid #8b949e;
+            border-radius: 0;
+            box-shadow: 5px 5px 0 rgba(0, 0, 0, 0.6);
             padding: 1.5rem;
         }
         label {
             display: block;
-            font-size: 0.85rem;
-            margin-bottom: 0.25rem;
+            font-size: 0.75rem;
+            margin-bottom: 0.4rem;
             color: #8b949e;
         }
         input {
             width: 100%;
             padding: 0.6rem 0.75rem;
             background: #0d1117;
-            border: 1px solid #30363d;
-            border-radius: 6px;
+            border: 2px solid #30363d;
+            border-radius: 0;
             color: #e6edf3;
-            font-size: 1rem;
+            font-size: 0.85rem;
+            font-family: 'Silkscreen', monospace;
             margin-bottom: 1rem;
         }
         input:focus {
@@ -56,27 +62,43 @@
             width: 100%;
             padding: 0.65rem;
             background: #238636;
-            border: none;
-            border-radius: 6px;
+            border: 3px solid #3fb950;
+            border-radius: 0;
+            box-shadow: 3px 3px 0 rgba(0, 0, 0, 0.6);
             color: #fff;
-            font-size: 1rem;
+            font-size: 0.85rem;
+            font-family: 'Silkscreen', monospace;
             cursor: pointer;
         }
         button:hover { background: #2ea043; }
         .error {
             background: #3d1214;
-            border: 1px solid #f85149;
+            border: 2px solid #f85149;
             color: #f85149;
             padding: 0.75rem 1rem;
-            border-radius: 6px;
+            border-radius: 0;
+            box-shadow: 3px 3px 0 rgba(0, 0, 0, 0.6);
             margin-bottom: 1rem;
-            font-size: 0.9rem;
+            font-size: 0.75rem;
+            line-height: 1.6;
+        }
+        .server-note {
+            background: #1f6feb22;
+            border: 2px solid #1f6feb;
+            color: #58a6ff;
+            padding: 0.6rem 0.9rem;
+            border-radius: 0;
+            box-shadow: 3px 3px 0 rgba(0, 0, 0, 0.6);
+            margin-bottom: 1rem;
+            font-size: 0.75rem;
+            text-align: center;
         }
         .switch {
             text-align: center;
-            margin-top: 1.25rem;
-            font-size: 0.9rem;
+            margin-top: 1.5rem;
+            font-size: 0.75rem;
             color: #8b949e;
+            line-height: 1.8;
         }
         .switch a {
             color: #58a6ff;
@@ -93,22 +115,50 @@
         <div class="error">{{ error }}</div>
         {% endif %}
 
+        {% if server_name %}
+        <div class="server-note">Joining server: <strong>{{ server_name }}</strong></div>
+        {% elif status == 'missing' %}
+        <div class="error">That server does not exist.</div>
+        {% endif %}
+
         <div class="panel">
             <form method="POST" action="/register">
+                <input type="hidden" name="server" value="{{ server or '' }}">
+                <input type="hidden" name="next" value="{{ next or '' }}">
+
                 <label for="username">Username</label>
                 <input type="text" id="username" name="username" required
-                       minlength="3" maxlength="32" pattern="[A-Za-z0-9]+"
-                       autocomplete="username">
+                       minlength="3" maxlength="32" pattern="[a-z0-9]+"
+                       autocomplete="username" autocapitalize="off" autocorrect="off"
+                       spellcheck="false">
 
                 <label for="password">Password</label>
                 <input type="password" id="password" name="password" required
                        minlength="8" autocomplete="new-password">
 
+                {% if require_server_password %}
+                <label for="server_password">Server password</label>
+                <input type="password" id="server_password" name="server_password" required autocomplete="off"
+                       placeholder="Password">
+                {% endif %}
+
                 <button type="submit">Create Account</button>
             </form>
         </div>
 
-        <p class="switch">Already have an account? <a href="/login">Sign in</a></p>
+        <p class="switch">
+            Already have an account?
+            <a href="/login{% if server %}?server={{ server }}{% endif %}{% if next %}&next={{ next }}{% endif %}">Sign in</a>
+        </p>
     </div>
+
+    <script>
+        const usernameInput = document.getElementById("username");
+        if (usernameInput) {
+            usernameInput.addEventListener("input", () => {
+                usernameInput.value = usernameInput.value.toLowerCase();
+            });
+        }
+    </script>
 </body>
 </html>

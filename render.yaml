@@ -4,7 +4,7 @@ services:
     runtime: python
     buildCommand: pip install -r requirements.txt
     startCommand: python server/main.py
-    healthCheckPath: /login
+    healthCheckPath: /
     envVars:
       - key: SECRET_KEY
         generateValue: true

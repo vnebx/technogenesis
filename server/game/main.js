@@ -1,6 +1,12 @@
 import { getBaseTileType } from "./mapgen/lake.js";
 import { getTreeTile, getTreeAt } from "./mapgen/tree.js";
 
+const urlParams = new URLSearchParams(window.location.search);
+const serverId = urlParams.get("server") || "";
+if (!serverId) {
+    window.location.href = "/";
+}
+
 const tileWidth = 60;
 const lakeWidth = 4;
 const lakeHeight = 3;
@@ -966,7 +972,7 @@ async function handleServerMessage(event) {
 }
 
 function fetchLocalPlayerData() {
-    return fetch("/api/player-data")
+    return fetch(`/api/player-data?server=${encodeURIComponent(serverId)}`)
         .then((response) => response.json())
         .then((data) => {
             const localData = data.data || {};
@@ -991,11 +997,11 @@ function fetchLocalPlayerData() {
 }
 
 function connectToServer() {
-    return fetch("/api/ws-token")
+    return fetch(`/api/ws-token?server=${encodeURIComponent(serverId)}`)
         .then((response) => response.json())
         .then((data) => {
             const protocol = window.location.protocol === "https:" ? "wss" : "ws";
-            ws = new WebSocket(`${protocol}://${window.location.host}/ws`);
+            ws = new WebSocket(`${protocol}://${window.location.host}/ws?server=${encodeURIComponent(serverId)}`);
 
             return new Promise((resolve, reject) => {
                 ws.onopen = () => ws.send(JSON.stringify({ token: data.token }));

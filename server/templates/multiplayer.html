@@ -1,0 +1,310 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Technogenesis - Multiplayer</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Silkscreen:wght@400;700&display=swap" rel="stylesheet">
+    <style>
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        body {
+            font-family: 'Silkscreen', monospace;
+            background: #0d1117;
+            color: #e6edf3;
+            min-height: 100vh;
+            display: flex;
+            justify-content: center;
+        }
+        .container {
+            width: 100%;
+            max-width: 620px;
+            padding: 2rem;
+        }
+        header {
+            display: flex;
+            align-items: baseline;
+            justify-content: space-between;
+            margin-bottom: 1.5rem;
+            flex-wrap: wrap;
+            gap: 0.5rem;
+        }
+        h1 {
+            font-size: 1.6rem;
+            letter-spacing: 0.05em;
+            text-shadow: 3px 3px 0 #000;
+        }
+        nav { font-size: 0.7rem; line-height: 1.8; }
+        nav a {
+            color: #58a6ff;
+            text-decoration: none;
+            margin-left: 0.75rem;
+            padding: 0.2rem 0.4rem;
+            border: 2px solid #30363d;
+            border-radius: 0;
+        }
+        nav a:hover { border-color: #58a6ff; text-decoration: none; }
+        .panel {
+            background: #161b22;
+            border: 3px solid #8b949e;
+            border-radius: 0;
+            box-shadow: 5px 5px 0 rgba(0, 0, 0, 0.6);
+            padding: 1.25rem;
+            margin-bottom: 1.5rem;
+        }
+        .panel h2 {
+            font-size: 0.95rem;
+            margin-bottom: 0.75rem;
+            color: #c9d1d9;
+            text-shadow: 2px 2px 0 #000;
+        }
+        label {
+            display: block;
+            font-size: 0.75rem;
+            margin-bottom: 0.4rem;
+            color: #8b949e;
+        }
+        input, select {
+            width: 100%;
+            padding: 0.55rem 0.7rem;
+            background: #0d1117;
+            border: 2px solid #30363d;
+            border-radius: 0;
+            color: #e6edf3;
+            font-size: 0.8rem;
+            font-family: 'Silkscreen', monospace;
+            margin-bottom: 0.75rem;
+        }
+        input:focus, select:focus { outline: none; border-color: #58a6ff; }
+        select option { background: #0d1117; }
+        button {
+            width: 100%;
+            padding: 0.6rem;
+            background: #1f6feb;
+            border: 3px solid #79c0ff;
+            border-radius: 0;
+            box-shadow: 3px 3px 0 rgba(0, 0, 0, 0.6);
+            color: #fff;
+            font-size: 0.8rem;
+            font-family: 'Silkscreen', monospace;
+            cursor: pointer;
+        }
+        button:hover { background: #388bfd; }
+        button.danger {
+            background: #b62324;
+            border-color: #f85149;
+            margin-left: 0.4rem;
+            width: auto;
+            padding: 0.3rem 0.5rem;
+            font-size: 0.65rem;
+            box-shadow: 2px 2px 0 rgba(0, 0, 0, 0.6);
+        }
+        button.danger:hover { background: #f85149; }
+        .row-actions button {
+            width: auto;
+            padding: 0.3rem 0.5rem;
+            font-size: 0.65rem;
+            margin-left: 0.4rem;
+            box-shadow: 2px 2px 0 rgba(0, 0, 0, 0.6);
+        }
+        .error {
+            background: #3d1214;
+            border: 2px solid #f85149;
+            color: #f85149;
+            padding: 0.6rem 0.9rem;
+            border-radius: 0;
+            box-shadow: 3px 3px 0 rgba(0, 0, 0, 0.6);
+            margin-top: 0.75rem;
+            font-size: 0.7rem;
+            line-height: 1.6;
+            white-space: pre-wrap;
+        }
+        .servers { list-style: none; }
+        .server-row {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 0.75rem;
+            padding: 0.7rem 0;
+            border-bottom: 2px solid #21262d;
+            flex-wrap: wrap;
+        }
+        .server-row:last-child { border-bottom: none; }
+        .badge {
+            font-style: normal;
+            font-size: 0.6rem;
+            padding: 0.15rem 0.45rem;
+            border-radius: 0;
+            margin-left: 0.4rem;
+            text-transform: capitalize;
+        }
+        .badge-public { background: #1f6feb22; color: #58a6ff; border: 2px solid #1f6feb; }
+        .badge-private { background: #b6232422; color: #f85149; border: 2px solid #b62324; }
+        .badge-singleplayer { background: #23863622; color: #3fb950; border: 2px solid #238636; }
+        code {
+            background: #0d1117;
+            border: 2px solid #30363d;
+            border-radius: 0;
+            padding: 0.1rem 0.35rem;
+            font-size: 0.7rem;
+            color: #e6edf3;
+            margin-left: 0.4rem;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>Technogenesis</h1>
+            <nav>
+                <a href="/">Menu</a>
+                <a href="/singleplayer">Singleplayer</a>
+                <a href="/logout">Log out</a>
+            </nav>
+        </header>
+
+        <div class="panel">
+            <h2>Create a server</h2>
+            <input id="create-name" placeholder="Server name" maxlength="40">
+            <select id="create-visibility">
+                <option value="public">Public</option>
+                <option value="private">Private</option>
+            </select>
+            <div id="password-wrap" style="display: none;">
+                <label for="create-password">Password</label>
+                <input type="password" id="create-password" placeholder="Password">
+            </div>
+            <button id="create-button">Create server</button>
+            <div id="create-error" class="error" style="display: none;"></div>
+        </div>
+
+        <div class="panel">
+            <h2>Your servers</h2>
+            <ul id="server-list" class="servers"></ul>
+        </div>
+
+        <div class="panel">
+            <h2>Join a server</h2>
+            <input id="join-code" placeholder="Server code" maxlength="6" autocapitalize="off" autocorrect="off" spellcheck="false">
+            <button id="join-button">Join server</button>
+            <div id="join-error" class="error" style="display: none;"></div>
+        </div>
+    </div>
+
+    <script>
+        const listEl = document.getElementById("server-list");
+
+        function escapeHtml(str) {
+            const div = document.createElement("div");
+            div.textContent = str;
+            return div.innerHTML;
+        }
+
+        async function refreshList() {
+            const res = await fetch("/api/my-servers");
+            const data = await res.json();
+            const servers = data.servers || [];
+            listEl.innerHTML = "";
+            for (const s of servers) {
+                const li = document.createElement("li");
+                li.className = "server-row";
+
+                const info = document.createElement("span");
+                const badge = s.singleplayer ? "singleplayer" : s.visibility;
+                info.innerHTML =
+                    `<strong>${escapeHtml(s.name)}</strong>` +
+                    `<em class="badge badge-${badge}">${badge}</em>` +
+                    `<code>${escapeHtml(s.id)}</code>`;
+                li.appendChild(info);
+
+                const actions = document.createElement("span");
+                actions.className = "row-actions";
+
+                const join = document.createElement("button");
+                join.textContent = "Join";
+                join.onclick = () => (location.href = `/game/?server=${encodeURIComponent(s.id)}`);
+                actions.appendChild(join);
+
+                const copy = document.createElement("button");
+                copy.textContent = "Copy link";
+                copy.onclick = () => {
+                    navigator.clipboard.writeText(`${location.origin}/join/${s.id}`).then(() => {
+                        copy.textContent = "Copied!";
+                        setTimeout(() => (copy.textContent = "Copy link"), 1500);
+                    });
+                };
+                actions.appendChild(copy);
+
+                const del = document.createElement("button");
+                del.className = "danger";
+                del.textContent = "Delete";
+                del.onclick = async () => {
+                    if (!confirm(`Delete server "${s.name}"? This cannot be undone.`)) return;
+                    await fetch(`/api/servers/${encodeURIComponent(s.id)}`, { method: "DELETE" });
+                    refreshList();
+                };
+                actions.appendChild(del);
+
+                li.appendChild(actions);
+                listEl.appendChild(li);
+            }
+        }
+
+        const visSel = document.getElementById("create-visibility");
+        const passWrap = document.getElementById("password-wrap");
+        visSel.onchange = () => {
+            passWrap.style.display = visSel.value === "private" ? "block" : "none";
+        };
+
+        document.getElementById("create-button").onclick = async () => {
+            const errEl = document.getElementById("create-error");
+            errEl.style.display = "none";
+            errEl.textContent = "";
+            const name = document.getElementById("create-name").value.trim();
+            const visibility = visSel.value;
+            const password = document.getElementById("create-password").value;
+            const res = await fetch("/api/servers", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ name, visibility, password }),
+            });
+            const data = await res.json();
+            if (!res.ok || !data.server) {
+                errEl.textContent = data.error || "Could not create server.";
+                errEl.style.display = "block";
+                return;
+            }
+            document.getElementById("create-name").value = "";
+            document.getElementById("create-password").value = "";
+            refreshList();
+        };
+
+        document.getElementById("join-button").onclick = async () => {
+            const errEl = document.getElementById("join-error");
+            errEl.style.display = "none";
+            errEl.textContent = "";
+            const code = document.getElementById("join-code").value.trim().toLowerCase();
+            if (!code) return;
+            const res = await fetch(`/api/server/${encodeURIComponent(code)}`);
+            if (res.status === 404) {
+                errEl.textContent = "No server with that code exists.";
+                errEl.style.display = "block";
+                return;
+            }
+            const data = await res.json();
+            if (data.is_owner || data.visibility === "public") {
+                location.href = `/game/?server=${encodeURIComponent(data.id)}`;
+            } else {
+                location.href = `/join/${encodeURIComponent(data.id)}`;
+            }
+        };
+
+        document.getElementById("join-code").addEventListener("keydown", (e) => {
+            if (e.key === "Enter") document.getElementById("join-button").click();
+        });
+
+        refreshList();
+    </script>
+</body>
+</html>

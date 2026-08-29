@@ -3,39 +3,79 @@
   "username": "test",
   "created_at": "2026-08-11T20:14:48.980336+00:00",
   "data": {
-    "position": {
-      "x": 950.6548956311523,
-      "y": 619.3572416906695
-    },
-    "animation": "idleforward",
-    "character": "assets/characters/basicrobot",
-    "inventory": [
-      {
-        "count": 1
+    "ZJDJZ4": {
+      "position": {
+        "x": 885.6280213321785,
+        "y": 289.19569132826484
       },
-      null,
-      null,
-      null,
-      null,
-      null,
-      null,
-      null,
-      null,
-      null,
-      null,
-      null,
-      null,
-      null,
-      null,
-      null,
-      null,
-      null,
-      null,
-      null,
-      null,
-      null,
-      null,
-      null
-    ]
+      "animation": "idlebackward",
+      "character": "assets/characters/basicrobot",
+      "inventory": [
+        {
+          "id": "oak_log_chunk",
+          "count": 8
+        },
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null
+      ]
+    },
+    "m5yfsw": {
+      "position": {
+        "x": -90.35288685122266,
+        "y": -567.3038343734465
+      },
+      "animation": "idleforward",
+      "character": "assets/characters/basicrobot",
+      "inventory": [
+        {
+          "id": "oak_log_chunk",
+          "count": 4
+        },
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null
+      ]
+    }
   }
 }

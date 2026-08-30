@@ -3,6 +3,7 @@ import hashlib
 import json
 import os
 import secrets
+import time
 import uuid
 from datetime import datetime, timezone
 from functools import wraps
@@ -36,6 +37,11 @@ CONNECTED_CLIENTS = {}
 PLAYER_CONNECTIONS = {}
 LIVE_PLAYER_STATE = {}
 WS_SEND_LOCKS = {}
+BROADCAST_INTERVAL = 0.08
+LAST_BROADCAST = {}
+PENDING_BROADCAST = {}
+PLAYER_SAVE_INTERVAL = 1.0
+PLAYER_LAST_SAVE = {}
 
 session_serializer = URLSafeTimedSerializer(SECRET_KEY, salt="session")
 ws_serializer = URLSafeTimedSerializer(SECRET_KEY, salt="ws-auth")
@@ -464,7 +470,7 @@ async def safe_send(websocket, message):
         await websocket.send_str(message)
 
 
-async def broadcast_world_state(server_id):
+async def _send_world_state(server_id):
     instance = get_server_instance(server_id)
     payload = {
         "type": "state",
@@ -479,6 +485,26 @@ async def broadcast_world_state(server_id):
             await safe_send(websocket, message)
         except Exception:
             CONNECTED_CLIENTS.setdefault(server_id, set()).discard(websocket)
+
+
+async def broadcast_world_state(server_id):
+    now = time.monotonic()
+    if now - LAST_BROADCAST.get(server_id, 0) < BROADCAST_INTERVAL:
+        if not PENDING_BROADCAST.get(server_id):
+            PENDING_BROADCAST[server_id] = True
+            asyncio.create_task(_flush_pending_broadcast(server_id))
+        return
+    await _send_world_state(server_id)
+    LAST_BROADCAST[server_id] = time.monotonic()
+
+
+async def _flush_pending_broadcast(server_id):
+    await asyncio.sleep(BROADCAST_INTERVAL)
+    if not PENDING_BROADCAST.get(server_id):
+        return
+    PENDING_BROADCAST[server_id] = False
+    await _send_world_state(server_id)
+    LAST_BROADCAST[server_id] = time.monotonic()
 
 
 # --- HTTP pages -----------------------------------------------------------
@@ -1021,7 +1047,11 @@ async def websocket_handler(request):
                     "inventory": inventory,
                 }
                 set_player_data(player, server_id, new_profile)
-                save_player(player_id, player)
+                save_key = (server_id, player_id)
+                now = time.monotonic()
+                if now - PLAYER_LAST_SAVE.get(save_key, 0) >= PLAYER_SAVE_INTERVAL:
+                    save_player(player_id, player)
+                    PLAYER_LAST_SAVE[save_key] = now
                 LIVE_PLAYER_STATE.setdefault(server_id, {})[player_id] = build_player_state(player_id, player, server_id)
                 await broadcast_world_state(server_id)
                 await safe_send(websocket, json.dumps({"ok": True, "type": "sync"}))

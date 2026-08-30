@@ -119,6 +119,8 @@ let coordEl = null;
 let ws = null;
 let localPlayerId = null;
 let lastSentSnapshot = null;
+let lastUpdateSentAt = 0;
+const UPDATE_SEND_INTERVAL = 80;
 
 let initStarted = false;
 let joystickEl = null;
@@ -156,14 +158,33 @@ function getCharacterFrames(character) {
 async function preloadSprites(character) {
     if (preloadedCharacters.has(character)) return;
     const frames = getCharacterFrames(character);
+    const jobs = [];
     for (const name of directions) {
         for (let i = 0; i < (frames[name] || 0); i++) {
             const src = `${character}/${name}${i}.png`;
             if (imageCache[src]) continue;
             const img = new Image();
             img.src = src;
-            img.decode && img.decode().catch(() => {});
             imageCache[src] = img;
+            jobs.push(img.decode ? img.decode().catch(() => {}) : Promise.resolve());
+        }
+    }
+    await Promise.all(jobs);
+    for (const name of directions) {
+        for (let i = 0; i < (frames[name] || 0); i++) {
+            const src = `${character}/${name}${i}.png`;
+            const img = imageCache[src];
+            if (img && img.complete && img.naturalWidth > 0 && !spriteDataUrls.has(src)) {
+                try {
+                    const canvas = document.createElement("canvas");
+                    canvas.width = img.naturalWidth;
+                    canvas.height = img.naturalHeight;
+                    canvas.getContext("2d").drawImage(img, 0, 0);
+                    spriteDataUrls.set(src, canvas.toDataURL("image/png"));
+                } catch (e) {
+                    /* keep raw path fallback */
+                }
+            }
         }
     }
     preloadedCharacters.add(character);
@@ -879,9 +900,18 @@ function updateRemotePlayers(players) {
         const frames = getCharacterFrames(remoteChar);
         const animation = frames[rawAnimation] ? rawAnimation : "idlebackward";
         const target = remoteTargets.get(playerId);
-        if (target && target.animation === animation && target.character === remoteChar) {
+        if (target && target.character === remoteChar) {
             target.tx = state.position.x;
             target.ty = state.position.y;
+            const gap = Math.hypot(state.position.x - target.x, state.position.y - target.y);
+            if (gap > tileWidth * 3) {
+                target.x = state.position.x;
+                target.y = state.position.y;
+            }
+            if (target.animation !== animation) {
+                target.animation = animation;
+                remoteAnim.set(playerId, { frame: 0, timer: 0 });
+            }
         } else {
             remoteTargets.set(playerId, {
                 tx: state.position.x,
@@ -914,7 +944,8 @@ function updateRemotePlayersRender(dt) {
         const dy = target.ty - target.y;
         const dist = Math.hypot(dx, dy);
         if (dist > 0.5) {
-            const step = Math.min(dist, moveSpeed * dt);
+            const catchUp = dist > moveSpeed ? moveSpeed * 4 : moveSpeed;
+            const step = Math.min(dist, catchUp * dt);
             target.x += (dx / dist) * step;
             target.y += (dy / dist) * step;
         } else {
@@ -982,6 +1013,10 @@ function getPlayerSnapshot() {
 
 function sendPlayerUpdate() {
     if (!ws || ws.readyState !== WebSocket.OPEN) return;
+
+    const now = performance.now();
+    if (now - lastUpdateSentAt < UPDATE_SEND_INTERVAL) return;
+    lastUpdateSentAt = now;
 
     const snapshot = getPlayerSnapshot();
     const payload = JSON.stringify({ operation: "update", data: snapshot });
@@ -1119,7 +1154,8 @@ function applyCanvasTransform() {
 }
 
 function gameLoop(time) {
-    const dt = lastTime ? (time - lastTime) / 1000 : 0;
+    const rawDt = lastTime ? (time - lastTime) / 1000 : 0;
+    const dt = Math.min(rawDt, 0.05);
     lastTime = time;
 
     if (!document.hasFocus()) clearMovementKeys();

@@ -665,11 +665,16 @@ function refreshRemovedTiles() {
         const col = parseInt(colStr, 10);
         const row = parseInt(rowStr, 10);
         const origin = getTreeAt(col, row, seed, regionSize, treeRegionSize);
-        if (origin && removedTrees.has(treeKey(origin))) {
-            if (entry.base) entry.base.remove();
-            if (entry.overlay) entry.overlay.remove();
-            tileElements.delete(key);
-            ensureTile(col, row);
+        if (!origin) continue;
+        if (removedTrees.has(treeKey(origin))) {
+            if (entry.overlay) {
+                entry.overlay.remove();
+                entry.overlay = null;
+            }
+        } else if (!entry.overlay) {
+            const treeType = getTreeTile(col, row, seed, regionSize, treeRegionSize);
+            const overlayZ = treeType === "oak_tree_leaves" ? "3" : "1";
+            entry.overlay = createTileElement(col, row, treeType, overlayZ);
         }
     }
 }
@@ -996,9 +1001,15 @@ function updateCoords() {
 
 function syncRemovedTrees(list) {
     if (!Array.isArray(list)) return;
-    removedTrees.clear();
-    list.forEach((key) => removedTrees.add(String(key)));
-    refreshRemovedTiles();
+    let changed = false;
+    for (const key of list) {
+        const k = String(key);
+        if (!removedTrees.has(k)) {
+            removedTrees.add(k);
+            changed = true;
+        }
+    }
+    if (changed) refreshRemovedTiles();
 }
 
 function getPlayerSnapshot() {

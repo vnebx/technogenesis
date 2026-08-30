@@ -125,5 +125,25 @@
             {% endif %}
         </div>
     </div>
+
+    <script>
+    (function () {
+        var isTouch = (navigator.maxTouchPoints > 0) || ("ontouchstart" in window) || /Android|iPhone|iPad|iPod|Mobile|Tablet|PlayBook|Silk/i.test(navigator.userAgent);
+        if (!isTouch) return;
+        var root = document.documentElement;
+        var entered = false;
+        function goFullscreen() {
+            if (entered) return;
+            entered = true;
+            try {
+                if (root.requestFullscreen) root.requestFullscreen().catch(function () {});
+                else if (root.webkitRequestFullscreen) root.webkitRequestFullscreen();
+            } catch (e) {}
+        }
+        ["touchstart", "pointerdown", "click"].forEach(function (evt) {
+            window.addEventListener(evt, goFullscreen, { capture: true, passive: true });
+        });
+    })();
+    </script>
 </body>
 </html>

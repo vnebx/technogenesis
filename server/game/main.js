@@ -3,9 +3,45 @@ import { getTreeTile, getTreeAt } from "./mapgen/tree.js";
 
 const urlParams = new URLSearchParams(window.location.search);
 const serverId = urlParams.get("server") || "";
+
+const isTouchDevice = (window.matchMedia && window.matchMedia("(pointer: coarse)").matches) ||
+    "ontouchstart" in window || navigator.maxTouchPoints > 0 ||
+    /iPad|iPhone|iPod/i.test(window.navigator.userAgent);
+
 if (!serverId) {
     window.location.href = "/";
 }
+
+(() => {
+    const startEl = document.getElementById("mobile-start");
+    const startBtn = document.getElementById("fullscreen-start");
+    if (!isTouchDevice || !startEl) return;
+
+    startEl.hidden = false;
+
+    const el = document.documentElement;
+    const reqFullscreen = () => {
+        const req = el.requestFullscreen || el.webkitRequestFullscreen;
+        if (req) {
+            const p = req.call(el);
+            if (p && p.catch) p.catch(() => {});
+        }
+    };
+
+    startBtn.addEventListener("click", () => {
+        startBtn.textContent = "Starting...";
+        if (!el.requestFullscreen && !el.webkitRequestFullscreen) {
+            setTimeout(startGame, 120);
+            return;
+        }
+        reqFullscreen();
+        const done = () => startGame();
+        document.addEventListener("fullscreenchange", done, { once: true });
+        document.addEventListener("webkitfullscreenchange", done, { once: true });
+        // fallback in case the browser does not support fullscreen
+        setTimeout(done, 900);
+    });
+})();
 
 const tileWidth = 60;
 const lakeWidth = 4;
@@ -84,6 +120,15 @@ let coordEl = null;
 let ws = null;
 let localPlayerId = null;
 let lastSentSnapshot = null;
+
+let initStarted = false;
+let joystickEl = null;
+let joystickKnobEl = null;
+let joystickTouchId = null;
+let joystickCenterX = 0;
+let joystickCenterY = 0;
+const JOYSTICK_RADIUS = 52;
+const JOYSTICK_DEADZONE = 14;
 
 function imageExists(src) {
     return new Promise((resolve) => {
@@ -1167,9 +1212,101 @@ window.addEventListener("resize", () => {
     updateCamera();
 });
 
+function createJoystick() {
+    joystickEl = document.createElement("div");
+    joystickEl.id = "joystick";
+
+    const base = document.createElement("div");
+    base.className = "joystick-base";
+
+    joystickKnobEl = document.createElement("div");
+    joystickKnobEl.className = "joystick-knob";
+
+    base.appendChild(joystickKnobEl);
+    joystickEl.appendChild(base);
+    document.body.appendChild(joystickEl);
+
+    joystickEl.addEventListener("touchstart", (e) => {
+        e.preventDefault();
+        const rect = joystickEl.getBoundingClientRect();
+        joystickCenterX = rect.left + rect.width / 2;
+        joystickCenterY = rect.top + rect.height / 2;
+        const touch = e.changedTouches[0];
+        joystickTouchId = touch.identifier;
+        updateJoystick(touch);
+    }, { passive: false });
+
+    window.addEventListener("touchmove", (e) => {
+        for (const touch of e.changedTouches) {
+            if (touch.identifier === joystickTouchId) {
+                e.preventDefault();
+                updateJoystick(touch);
+                break;
+            }
+        }
+    }, { passive: false });
+
+    const releaseJoystick = () => {
+        if (joystickTouchId === null) return;
+        joystickTouchId = null;
+        keys["w"] = false;
+        keys["s"] = false;
+        keys["a"] = false;
+        keys["d"] = false;
+        if (joystickKnobEl) joystickKnobEl.style.transform = "translate(0px, 0px)";
+    };
+
+    window.addEventListener("touchend", (e) => {
+        for (const touch of e.changedTouches) {
+            if (touch.identifier === joystickTouchId) {
+                releaseJoystick();
+                break;
+            }
+        }
+    }, { passive: false });
+
+    window.addEventListener("touchcancel", releaseJoystick, { passive: false });
+}
+
+function updateJoystick(touch) {
+    let dx = touch.clientX - joystickCenterX;
+    let dy = touch.clientY - joystickCenterY;
+    const dist = Math.hypot(dx, dy);
+    if (dist > JOYSTICK_RADIUS) {
+        dx = (dx / dist) * JOYSTICK_RADIUS;
+        dy = (dy / dist) * JOYSTICK_RADIUS;
+    }
+    joystickKnobEl.style.transform = `translate(${dx}px, ${dy}px)`;
+
+    if (Math.hypot(dx, dy) < JOYSTICK_DEADZONE) {
+        keys["w"] = false;
+        keys["s"] = false;
+        keys["a"] = false;
+        keys["d"] = false;
+        return;
+    }
+
+    const mag = Math.max(Math.abs(dx), Math.abs(dy));
+    keys["w"] = dy < 0 && Math.abs(dy) >= mag * 0.5;
+    keys["s"] = dy > 0 && Math.abs(dy) >= mag * 0.5;
+    keys["a"] = dx < 0 && Math.abs(dx) >= mag * 0.5;
+    keys["d"] = dx > 0 && Math.abs(dx) >= mag * 0.5;
+}
+
+function startGame() {
+    if (initStarted) return;
+    initStarted = true;
+    const startEl = document.getElementById("mobile-start");
+    if (startEl) startEl.hidden = true;
+    init();
+}
+
 async function init() {
     GAME_W = window.innerWidth;
     GAME_H = window.innerHeight;
+    if (isTouchDevice) {
+        createJoystick();
+    }
 
     appEl = document.createElement("div");
     appEl.id = "app";
@@ -1207,4 +1344,6 @@ async function init() {
     requestAnimationFrame(gameLoop);
 }
 
-init();
+if (!isTouchDevice || !document.getElementById("mobile-start")) {
+    startGame();
+}

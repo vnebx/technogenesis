@@ -185,6 +185,11 @@
         </div>
 
         <div class="panel">
+            <h2>Public servers</h2>
+            <ul id="public-server-list" class="servers"></ul>
+        </div>
+
+        <div class="panel">
             <h2>Join a server</h2>
             <input id="join-code" placeholder="Server code" maxlength="6" autocapitalize="off" autocorrect="off" spellcheck="false">
             <button id="join-button">Join server</button>
@@ -194,11 +199,55 @@
 
     <script>
         const listEl = document.getElementById("server-list");
+        const publicListEl = document.getElementById("public-server-list");
 
         function escapeHtml(str) {
             const div = document.createElement("div");
             div.textContent = str;
             return div.innerHTML;
+        }
+
+        function emptyRow(text, el) {
+            el.innerHTML = "";
+            const li = document.createElement("li");
+            li.className = "server-row";
+            li.style.opacity = "0.6";
+            li.style.fontSize = "0.7rem";
+            li.textContent = text;
+            el.appendChild(li);
+        }
+
+        async function refreshPublicServers() {
+            const res = await fetch("/api/public-servers");
+            const data = await res.json();
+            const servers = data.servers || [];
+            publicListEl.innerHTML = "";
+            if (servers.length === 0) {
+                emptyRow("No public servers yet. Create one and it will show here.", publicListEl);
+                return;
+            }
+            for (const s of servers) {
+                const li = document.createElement("li");
+                li.className = "server-row";
+
+                const info = document.createElement("span");
+                info.innerHTML =
+                    `<strong>${escapeHtml(s.name)}</strong>` +
+                    `<em class="badge badge-${s.visibility}">${escapeHtml(s.visibility)}</em>` +
+                    `<code>${escapeHtml(s.id)}</code>`;
+                li.appendChild(info);
+
+                const actions = document.createElement("span");
+                actions.className = "row-actions";
+
+                const join = document.createElement("button");
+                join.textContent = "Join";
+                join.onclick = () => (location.href = `/game/?server=${encodeURIComponent(s.id)}`);
+                actions.appendChild(join);
+
+                li.appendChild(actions);
+                publicListEl.appendChild(li);
+            }
         }
 
         async function refreshList() {
@@ -243,6 +292,7 @@
                     if (!confirm(`Delete server "${s.name}"? This cannot be undone.`)) return;
                     await fetch(`/api/servers/${encodeURIComponent(s.id)}`, { method: "DELETE" });
                     refreshList();
+                    refreshPublicServers();
                 };
                 actions.appendChild(del);
 
@@ -278,6 +328,7 @@
             document.getElementById("create-name").value = "";
             document.getElementById("create-password").value = "";
             refreshList();
+            refreshPublicServers();
         };
 
         document.getElementById("join-button").onclick = async () => {
@@ -305,6 +356,7 @@
         });
 
         refreshList();
+        refreshPublicServers();
     </script>
 
     <script>

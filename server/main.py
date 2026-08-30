@@ -803,6 +803,21 @@ async def my_servers(request):
     return web.json_response({"servers": servers})
 
 
+async def public_servers(request):
+    session = load_session(request)
+    player_id = session.get("player_id")
+    if not player_id:
+        return web.json_response({"error": "not_logged_in"}, status=401)
+    servers = [
+        public_server_info(s, session)
+        for s in load_servers()
+        if not s.get("singleplayer")
+        and s.get("visibility") == "public"
+        and s.get("owner") != player_id
+    ]
+    return web.json_response({"servers": servers})
+
+
 async def create_server_handler(request):
     session = load_session(request)
     player_id = session.get("player_id")
@@ -1077,6 +1092,7 @@ app.router.add_get("/join/{server_id}", join_server)
 app.router.add_post("/join/{server_id}", join_server)
 app.router.add_get("/api/whoami", whoami)
 app.router.add_get("/api/my-servers", my_servers)
+app.router.add_get("/api/public-servers", public_servers)
 app.router.add_post("/api/servers", create_server_handler)
 app.router.add_delete("/api/servers/{server_id}", delete_server_handler)
 app.router.add_get("/api/server/{server_id}", server_info)

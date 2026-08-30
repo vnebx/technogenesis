@@ -111,7 +111,6 @@ let GAME_W = 0;
 let GAME_H = 0;
 let scaleX = 1;
 let scaleY = 1;
-let dprRef = null;
 let cameraX = 0;
 let cameraY = 0;
 let worldEl = null;
@@ -168,6 +167,27 @@ async function preloadSprites(character) {
         }
     }
     preloadedCharacters.add(character);
+}
+
+const spriteDataUrls = new Map();
+
+function spriteBackground(src) {
+    if (spriteDataUrls.has(src)) return spriteDataUrls.get(src);
+    const img = imageCache[src];
+    if (img && img.complete && img.naturalWidth > 0) {
+        try {
+            const canvas = document.createElement("canvas");
+            canvas.width = img.naturalWidth;
+            canvas.height = img.naturalHeight;
+            canvas.getContext("2d").drawImage(img, 0, 0);
+            const url = canvas.toDataURL("image/png");
+            spriteDataUrls.set(src, url);
+            return url;
+        } catch (e) {
+            return src;
+        }
+    }
+    return src;
 }
 
 const TILE_TYPES = ["grass", "water", "oak_log", "oak_tree_leaves"];
@@ -332,8 +352,6 @@ function createPlayer() {
     playerEl.style.backgroundPosition = "center";
     playerEl.style.backgroundRepeat = "no-repeat";
     playerEl.style.zIndex = "10";
-    playerEl.style.transform = "translateZ(0)";
-    playerEl.style.willChange = "transform";
     viewportEl.appendChild(playerEl);
     updatePlayerSprite();
 }
@@ -350,8 +368,6 @@ function createRemotePlayer(playerId) {
     player.style.backgroundRepeat = "no-repeat";
     player.style.zIndex = "10";
     player.style.pointerEvents = "none";
-    player.style.transform = "translateZ(0)";
-    player.style.willChange = "transform";
     viewportEl.appendChild(player);
     remotePlayers.set(playerId, player);
     return player;
@@ -819,7 +835,7 @@ function updatePlayerSprite() {
     const src = `${characterPath}/${spriteName}${animFrame}.png`;
     if (playerEl.dataset.src !== src) {
         playerEl.dataset.src = src;
-        playerEl.style.backgroundImage = `url(${src})`;
+        playerEl.style.backgroundImage = `url(${spriteBackground(src)})`;
     }
     const left = Math.round(GAME_W / 2 - tileWidth / 2);
     const top = Math.round(GAME_H / 2 - tileWidth / 2);
@@ -927,7 +943,7 @@ function updateRemotePlayersRender(dt) {
 
         if (player.dataset.src !== spritePath) {
             player.dataset.src = spritePath;
-            player.style.backgroundImage = `url(${spritePath})`;
+            player.style.backgroundImage = `url(${spriteBackground(spritePath)})`;
         }
         if (player.dataset.left !== String(left)) {
             player.dataset.left = String(left);
@@ -1067,11 +1083,8 @@ function connectToServer() {
 
 function applyCanvasTransform() {
     if (!appEl) return;
-    const dpr = window.devicePixelRatio || 1;
-    if (dprRef === null) dprRef = dpr;
-
-    const newW = Math.round(window.innerWidth * dpr / dprRef);
-    const newH = Math.round(window.innerHeight * dpr / dprRef);
+    const newW = Math.max(1, Math.round(window.innerWidth));
+    const newH = Math.max(1, Math.round(window.innerHeight));
     if (GAME_W === 0 || newW !== GAME_W || newH !== GAME_H) {
         GAME_W = newW;
         GAME_H = newH;
@@ -1083,9 +1096,13 @@ function applyCanvasTransform() {
         }
     }
 
-    scaleX = dprRef / dpr;
-    scaleY = dprRef / dpr;
-    appEl.style.transform = `scale(${scaleX}, ${scaleY})`;
+    // The game is pure CSS pixels; do not apply any transform scale.
+    // Re-writing a scale() on the container every frame forces mobile
+    // browsers to re-resolve the containing block of every fixed-position
+    // child each frame, which makes all players flicker.
+    scaleX = 1;
+    scaleY = 1;
+    if (appEl.style.transform) appEl.style.transform = "";
 }
 
 function gameLoop(time) {

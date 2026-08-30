@@ -13,7 +13,8 @@ function createRng(seedValues, rx, ry) {
 }
 
 export function getTreeOrigin(rx, ry, seed, treeRegionSize) {
-    const key = `${rx},${ry}`;
+    const seedKey = seed.join(",");
+    const key = `${seedKey}|${rx},${ry}`;
     if (getTreeOrigin.cache.has(key)) {
         return getTreeOrigin.cache.get(key);
     }

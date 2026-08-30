@@ -300,6 +300,7 @@ function ensureTile(col, row) {
 }
 
 function updateVisibleTiles() {
+    if (!seed || !seed.length) return;
     const createMargin = 3;
     const keepMargin = 8;
     const startCol = Math.floor(cameraX / tileWidth) - createMargin;
@@ -995,7 +996,7 @@ async function handleServerMessage(event) {
 
     if (message.type === "welcome") {
         localPlayerId = message.player_id;
-        seed = Array.isArray(message.seed) ? message.seed : [];
+        applySeed(message.seed);
         syncRemovedTrees(message.removed_trees);
         syncGroundItems(message.ground_items);
         if (message.players) {
@@ -1016,10 +1017,7 @@ async function handleServerMessage(event) {
     }
 
     if (message.type === "state") {
-        if (Array.isArray(message.seed)) {
-            seed = message.seed;
-            if (seed.length) updateVisibleTiles();
-        }
+        applySeed(message.seed);
         syncRemovedTrees(message.removed_trees);
         syncGroundItems(message.ground_items);
         if (message.players) {
@@ -1029,6 +1027,21 @@ async function handleServerMessage(event) {
             }
             updateRemotePlayers(message.players);
         }
+    }
+}
+
+function applySeed(newSeed) {
+    const next = Array.isArray(newSeed) ? newSeed : [];
+    if (JSON.stringify(next) === JSON.stringify(seed)) return;
+    seed = next;
+    for (const [, entry] of tileElements) {
+        if (entry.base) entry.base.remove();
+        if (entry.overlay) entry.overlay.remove();
+    }
+    tileElements.clear();
+    if (seed.length) {
+        updateVisibleTiles();
+        updateCamera();
     }
 }
 

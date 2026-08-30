@@ -13,7 +13,8 @@ function createRng(seedValues, rx, ry) {
 }
 
 export function getLakeOrigin(rx, ry, seed, regionSize, lakeWidth, lakeHeight) {
-    const key = `${rx},${ry}`;
+    const seedKey = seed.join(",");
+    const key = `${seedKey}|${rx},${ry}`;
     if (getLakeOrigin.cache.has(key)) {
         return getLakeOrigin.cache.get(key);
     }

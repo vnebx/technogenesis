@@ -1,4 +1,5 @@
 import asyncio
+import hashlib
 import json
 import os
 import secrets
@@ -147,6 +148,24 @@ def generate_world_seed():
     return [secrets.randbelow(256) for _ in range(WORLD_SEED_LENGTH)]
 
 
+def seed_from_text(text):
+    digest = hashlib.sha256(text.encode("utf-8")).digest()
+    return list(digest[:WORLD_SEED_LENGTH])
+
+
+def parse_seed(text):
+    text = (text or "").strip()
+    if not text:
+        return None
+    try:
+        values = [int(part) for part in text.replace(",", " ").split() if part.strip() != ""]
+    except ValueError:
+        values = []
+    if len(values) == WORLD_SEED_LENGTH and all(0 <= value <= 255 for value in values):
+        return values
+    return seed_from_text(text)
+
+
 # --- Server registry -----------------------------------------------------
 
 
@@ -194,7 +213,7 @@ def generate_server_id():
             return candidate
 
 
-def create_server(name, owner_id, visibility, password, singleplayer=False):
+def create_server(name, owner_id, visibility, password, singleplayer=False, seed=None):
     servers = load_servers()
     server = {
         "id": generate_server_id(),
@@ -203,6 +222,7 @@ def create_server(name, owner_id, visibility, password, singleplayer=False):
         "singleplayer": bool(singleplayer),
         "visibility": visibility,
         "password_hash": generate_password_hash(password) if password else None,
+        "seed": seed if isinstance(seed, list) and seed else None,
         "created_at": datetime.now(timezone.utc).isoformat(),
     }
     servers.append(server)
@@ -335,7 +355,12 @@ def get_server_instance(server_id):
 
     SERVER_INSTANCES[server_id] = instance
     if not instance["seed"]:
-        instance["seed"] = generate_world_seed()
+        server = get_server(server_id)
+        custom_seed = (server or {}).get("seed") if server else None
+        if isinstance(custom_seed, list) and custom_seed:
+            instance["seed"] = list(custom_seed)
+        else:
+            instance["seed"] = generate_world_seed()
         save_world_state(server_id)
     return instance
 
@@ -677,7 +702,8 @@ async def singleplayer(request):
         None,
     )
     if server is None:
-        server = create_server("Singleplayer", player_id, "private", None, singleplayer=True)
+        server = create_server("Singleplayer", player_id, "private", None,
+                               singleplayer=True, seed=parse_seed(request.query.get("seed") or ""))
     get_server_instance(server["id"])
     return web.HTTPFound(f"/game/?server={server['id']}")
 
@@ -843,7 +869,7 @@ async def create_server_handler(request):
     if len(owned) >= MAX_SERVERS_PER_ACCOUNT:
         return web.json_response({"error": "You reached the server limit."}, status=400)
 
-    server = create_server(name, player_id, visibility, password)
+    server = create_server(name, player_id, visibility, password, seed=parse_seed(body.get("seed") or ""))
     get_server_instance(server["id"])
     return web.json_response({"server": public_server_info(server, session)})
 

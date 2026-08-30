@@ -167,6 +167,7 @@
         <div class="panel">
             <h2>Create a server</h2>
             <input id="create-name" placeholder="Server name" maxlength="40">
+            <input id="create-seed" placeholder="World seed (optional)" maxlength="200" autocapitalize="off" autocorrect="off" spellcheck="false">
             <select id="create-visibility">
                 <option value="public">Public</option>
                 <option value="private">Private</option>
@@ -312,12 +313,13 @@
             errEl.style.display = "none";
             errEl.textContent = "";
             const name = document.getElementById("create-name").value.trim();
+            const seedText = document.getElementById("create-seed").value.trim();
             const visibility = visSel.value;
             const password = document.getElementById("create-password").value;
             const res = await fetch("/api/servers", {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ name, visibility, password }),
+                body: JSON.stringify({ name, visibility, password, seed: seedText }),
             });
             const data = await res.json();
             if (!res.ok || !data.server) {
@@ -326,6 +328,7 @@
                 return;
             }
             document.getElementById("create-name").value = "";
+            document.getElementById("create-seed").value = "";
             document.getElementById("create-password").value = "";
             refreshList();
             refreshPublicServers();

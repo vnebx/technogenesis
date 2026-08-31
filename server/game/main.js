@@ -63,6 +63,7 @@ let cursorItem = null;
 let cursorItemEl = null;
 let tooltipEl = null;
 const slotElements = [];
+let touchDrag = null;
 
 const ITEM_IMAGE_PATH = "assets/ui/items/";
 const MAX_STACK = 64;
@@ -473,6 +474,19 @@ function grabHalfFromSlot(index) {
     sendPlayerUpdate();
 }
 
+function splitHeldItem(fromIndex) {
+    if (!cursorItem || cursorItem.count < 2) return;
+    const keep = Math.floor(cursorItem.count / 2);
+    const held = cursorItem.count - keep;
+    if (!playerInventory[fromIndex]) {
+        playerInventory[fromIndex] = createItemSlot(cursorItem.id, keep);
+    }
+    cursorItem.count = held;
+    updateCursorItem();
+    renderInventory();
+    sendPlayerUpdate();
+}
+
 function placeOnSlot(index) {
     if (!cursorItem) return;
     const slot = playerInventory[index];
@@ -604,8 +618,84 @@ function createInventoryUI() {
             }
         });
 
+        slot.addEventListener("touchstart", (e) => {
+            const touch = e.changedTouches[0];
+            if (touchDrag) return;
+            e.preventDefault();
+            e.stopPropagation();
+            const index = parseInt(slot.dataset.index, 10);
+            if (!cursorItem) grabFromSlot(index);
+            touchDrag = {
+                touchId: touch.identifier,
+                startX: touch.clientX,
+                startY: touch.clientY,
+                fromIndex: index,
+                dragged: false,
+                holdTimer: window.setTimeout(() => {
+                    if (touchDrag && !touchDrag.dragged) {
+                        splitHeldItem(touchDrag.fromIndex);
+                    }
+                }, 1000),
+            };
+        }, { passive: false });
+
         inventoryEl.appendChild(slot);
         slotElements.push(slot);
+    }
+
+    if (isTouchDevice) {
+        window.addEventListener("touchmove", (e) => {
+            if (!touchDrag) return;
+            for (const touch of e.changedTouches) {
+                if (touch.identifier === touchDrag.touchId) {
+                    e.preventDefault();
+                    touchDrag.lastTime = performance.now();
+                    const dx = touch.clientX - touchDrag.startX;
+                    const dy = touch.clientY - touchDrag.startY;
+                    if (Math.hypot(dx, dy) > 8) {
+                        touchDrag.dragged = true;
+                        window.clearTimeout(touchDrag.holdTimer);
+                    }
+                    if (touchDrag.dragged && cursorItemEl) {
+                        cursorItemEl.style.left = `${touch.clientX}px`;
+                        cursorItemEl.style.top = `${touch.clientY}px`;
+                        cursorItemEl.style.display = "block";
+                    }
+                    break;
+                }
+            }
+        }, { passive: false });
+
+        window.addEventListener("touchend", (e) => {
+            if (!touchDrag) return;
+            for (const touch of e.changedTouches) {
+                if (touch.identifier === touchDrag.touchId) {
+                    e.preventDefault();
+                    window.clearTimeout(touchDrag.holdTimer);
+                    const drag = touchDrag;
+                    touchDrag = null;
+                    const el = document.elementFromPoint(touch.clientX, touch.clientY);
+                    const targetSlot = el ? el.closest(".slot") : null;
+                    if (targetSlot) {
+                        placeOnSlot(parseInt(targetSlot.dataset.index, 10));
+                    } else {
+                        dropCursorItem();
+                    }
+                    break;
+                }
+            }
+        }, { passive: false });
+
+        window.addEventListener("touchcancel", (e) => {
+            if (!touchDrag) return;
+            for (const touch of e.changedTouches) {
+                if (touch.identifier === touchDrag.touchId) {
+                    window.clearTimeout(touchDrag.holdTimer);
+                    touchDrag = null;
+                    break;
+                }
+            }
+        }, { passive: false });
     }
 
     document.addEventListener("mousemove", (e) => {
@@ -1370,6 +1460,39 @@ function updateJoystick(touch) {
     keys["d"] = dx > 0 && Math.abs(dx) >= mag * 0.5;
 }
 
+function createMobileButtons() {
+    const useBtn = document.createElement("button");
+    useBtn.id = "mobile-use-btn";
+    useBtn.textContent = "USE";
+    useBtn.addEventListener("touchstart", (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        if (!using && useCooldownTimer <= 0) {
+            startUse();
+        }
+    }, { passive: false });
+    document.body.appendChild(useBtn);
+    useBtn.style.display = "flex";
+    useBtn.style.alignItems = "center";
+    useBtn.style.justifyContent = "center";
+
+    const invBtn = document.createElement("button");
+    invBtn.id = "mobile-inv-btn";
+    invBtn.textContent = "INV";
+    invBtn.addEventListener("touchstart", (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        inventoryVisible = !inventoryVisible;
+        if (inventoryEl) {
+            inventoryEl.style.display = inventoryVisible ? "grid" : "none";
+        }
+    }, { passive: false });
+    document.body.appendChild(invBtn);
+    invBtn.style.display = "flex";
+    invBtn.style.alignItems = "center";
+    invBtn.style.justifyContent = "center";
+}
+
 function startGame() {
     if (initStarted) return;
     initStarted = true;
@@ -1383,6 +1506,7 @@ async function init() {
     GAME_H = window.innerHeight;
     if (isTouchDevice) {
         createJoystick();
+        createMobileButtons();
     }
 
     appEl = document.createElement("div");

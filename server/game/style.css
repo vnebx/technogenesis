@@ -227,6 +227,55 @@ body, html {
     pointer-events: none;
 }
 
+/* Mobile action buttons */
+
+#mobile-use-btn {
+    position: fixed;
+    bottom: max(24px, env(safe-area-inset-bottom));
+    right: max(24px, env(safe-area-inset-right));
+    width: 80px;
+    height: 80px;
+    border-radius: 50%;
+    border: 3px solid rgba(255, 255, 255, 0.85);
+    background: rgba(255, 255, 255, 0.45);
+    color: #fff;
+    font-family: 'Silkscreen', monospace;
+    font-size: 0.7rem;
+    text-shadow: 1px 1px 0 #000;
+    z-index: 25;
+    display: none;
+    touch-action: none;
+    pointer-events: auto;
+    -webkit-tap-highlight-color: transparent;
+    letter-spacing: 0.02em;
+}
+#mobile-use-btn:active {
+    background: rgba(255, 255, 255, 0.7);
+}
+
+#mobile-inv-btn {
+    position: fixed;
+    bottom: max(24px, env(safe-area-inset-bottom));
+    right: max(114px, calc(env(safe-area-inset-right) + 90px));
+    width: 50px;
+    height: 50px;
+    border-radius: 10px;
+    border: 3px solid rgba(255, 255, 255, 0.85);
+    background: rgba(255, 255, 255, 0.45);
+    color: #fff;
+    font-family: 'Silkscreen', monospace;
+    font-size: 0.45rem;
+    text-shadow: 1px 1px 0 #000;
+    z-index: 25;
+    display: none;
+    touch-action: none;
+    pointer-events: auto;
+    -webkit-tap-highlight-color: transparent;
+}
+#mobile-inv-btn:active {
+    background: rgba(255, 255, 255, 0.7);
+}
+
 @media (pointer: coarse) {
     .mobile-start-sub { font-size: 0.7rem; }
 }

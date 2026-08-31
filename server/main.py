@@ -1133,6 +1133,7 @@ async def websocket_handler(request):
         WS_SEND_LOCKS.pop(id(websocket), None)
         if not PLAYER_CONNECTIONS.get(server_id, {}).get(player_id):
             LIVE_PLAYER_STATE.setdefault(server_id, {}).pop(player_id, None)
+        await broadcast_world_state(server_id)
     return websocket
 
 

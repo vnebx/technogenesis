@@ -34,8 +34,26 @@ Right now it's not really a working game yet — it's more like a small multipla
 
 ### Main files & folders
 - `server/main.py` — the aiohttp server. Handles login/register, the websocket, and keeps the "world state" in memory. Sends the current positions of all players to everyone on each update.
-- `server/game/` — the entire client. `index.html` + `main.js` + `style.css`. There is no build step, it's just files.
+- `server/game/` — the entire client. `index.html` + a bunch of ES modules + `style.css`. There is no build step, it's just files.
 - `server/game/mapgen/` — the procedural generation (lakes, trees).
+
+### The client modules (`server/game/*.js`)
+The client is split into small ES modules, all sharing a central `state`. `main.js` only holds the core logic (init, the render loop, the player, the camera, the HUD); everything else lives in its own file.
+
+- `index.html` — the game shell. Loads `style.css` and the `main.js` module, and holds the mobile "tap to go fullscreen" start screen.
+- `main.js` — **core logic & orchestration.** Boots the game (`init`/`startGame`), owns the `requestAnimationFrame` render loop, the local player, the HUD (`#coords`), the camera transform defense (`applyCanvasTransform`), and the desktop keyboard/window input handlers. Imports everything else and wires it together.
+- `style.css` — all the styling for the entire game.
+- `state.js` — the shared brain. Exports `CONFIG` (all the balance/geometry constants like `tileWidth`, `CHOP_USES_REQUIRED`) and `state`, one big object holding every bit of mutable game state (player position, inventory, camera, websocket, caches, remote players, etc.). Every module reads/writes through it, which is what lets them talk to each other without a mess of circular globals.
+- `settings.js` — the mobile settings. Loads, applies, and saves the joystick/inventory/button sizes to `localStorage`. `applySettings` writes the CSS variables and recalculates the joystick radius.
+- `sprites.js` — images. Discovers character animation frames on disk, preloads them into an image cache, converts them to data URLs to dodge Chrome's background-image flicker, and averages tile colors for the black-seam workaround. Also picks the current sprite frame name.
+- `tiles.js` — the world's ground & trees. Creates/destroys tile elements as you move, applies the removed-tree set, and drives `updateCamera()` (the big `translate` transform). Tree existence queries (`treeAtPlayer`) live here too.
+- `inventory.js` — your 24-slot bag. Builds the inventory grid, the cursor-following item, and the tooltip. Handles grab/place, grab-half, the 1-second-hold split, and touch drag & drop.
+- `grounditems.js` — items lying on the world. Renders them with the little bobbing animation, picks them up when the player overlaps them, and drops the held item onto the ground.
+- `remote.js` — the other players. Creates remote player elements, holds their animation state, and eases them toward their network target each frame (interpolation).
+- `net.js` — the websocket. Connects with a token, sends the player snapshot, and handles `welcome`/`state` messages from the server (applying seed, removed trees, ground items, remote players, your saved inventory).
+- `gameplay.js` — "use" actions. `startUse()`/`applyUseEffect()` count chops towards a tree and fell it, dropping the log and telling the server.
+- `input.js` — keys. Turns `W A S D` into a movement/direction vector and resets keys when the window loses focus.
+- `mobile.js` — the touch UI. The joystick, the USE/INV action buttons, and the settings gear + panel. Also exports `isTouchDevice`.
 
 ### Technical details about the code
 
@@ -64,10 +82,11 @@ The server sends positions whenever they change, but the game doesn't snap to th
 Each tree remembers how many "uses" it's had (`treeUseCounts`). After `CHOP_USES_REQUIRED` chops the tree falls and drops its log. The server gets told the tree is gone so everyone sees it disappear.
 
 ### Quick references
-- `CHOP_USES_REQUIRED` (main.js) — chops needed to fell a tree
-- `tileWidth = 60` (main.js) — world tile size in px
+- `CHOP_USES_REQUIRED` (state.js) — chops needed to fell a tree
+- `tileWidth = 60` (state.js) — world tile size in px
 - `applyCanvasTransform()` (main.js) — the browser-zoom defense
-- `updateRemotePlayersRender(dt)` (main.js) — the remote-player movement
+- `updateRemotePlayersRender(dt)` (remote.js) — the remote-player movement
+- `settings.js` — where the mobile sizes are applied to the CSS variables
 
 ---
 

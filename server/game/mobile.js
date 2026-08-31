@@ -84,6 +84,9 @@ export function updateJoystick(touch) {
     }
 
     const mag = Math.max(Math.abs(dx), Math.abs(dy));
+    // Map analog stick direction to WASD keys. Use the dominant axis (compared against
+    // half the max projection) so diagonal input maps to the two relevant keys,
+    // and a deadzone-free center returns to idle. The joystick basically works the same as WASD
     state.keys["w"] = dy < 0 && Math.abs(dy) >= mag * 0.5;
     state.keys["s"] = dy > 0 && Math.abs(dy) >= mag * 0.5;
     state.keys["a"] = dx < 0 && Math.abs(dx) >= mag * 0.5;
@@ -108,6 +111,7 @@ export function createMobileButtons() {
 
     const invBtn = document.createElement("button");
     invBtn.id = "mobile-inv-btn";
+    // Buttons may need icons instead of text for better look, but for now this is fine
     invBtn.textContent = "INV";
     invBtn.addEventListener("touchstart", (e) => {
         e.preventDefault();

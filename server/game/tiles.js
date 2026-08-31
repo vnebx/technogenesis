@@ -1,7 +1,7 @@
 import { getBaseTileType } from "./mapgen/lake.js";
 import { getTreeTile, getTreeAt } from "./mapgen/tree.js";
 import { CONFIG, state } from "./state.js";
-
+// This code has tile rendering and terrain generation logic.
 export function tileKey(col, row) {
     return `${col},${row}`;
 }
@@ -48,6 +48,8 @@ function ensureTile(col, row) {
 
 export function updateVisibleTiles() {
     if (!state.seed || !state.seed.length) return;
+    // createMargin: tiles rendered slightly beyond the viewport so nothing pops in at the edges
+    // keepMargin: tiles kept alive further out (larger) so scrolling doesn't recreate them repeatedly
     const createMargin = 3;
     const keepMargin = 8;
     const startCol = Math.floor(state.cameraX / CONFIG.tileWidth) - createMargin;
@@ -112,6 +114,7 @@ export function refreshRemovedTiles() {
 export function treeAtPlayer() {
     const px = Math.floor(state.playerWorldX / CONFIG.tileWidth);
     const py = Math.floor(state.playerWorldY / CONFIG.tileWidth);
+    // Search a 3x3 tile area around the player to find the tree being interacted with
     for (let dy = -1; dy <= 1; dy++) {
         for (let dx = -1; dx <= 1; dx++) {
             const origin = getTreeAt(px + dx, py + dy, state.seed, CONFIG.regionSize, CONFIG.treeRegionSize);

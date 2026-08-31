@@ -1,5 +1,6 @@
 import { CONFIG, state } from "./state.js";
-
+// Every character has a set of animations for each direction (up, down, left, right) and idle states.
+// For diagonals vertical animations are used
 export function imageExists(src) {
     return new Promise((resolve) => {
         const img = new Image();
@@ -8,9 +9,14 @@ export function imageExists(src) {
         img.src = src;
     });
 }
-
+// Animations available:
+// idle, up, down, left, right, use
+// when creating png's for each animation put the animation name, and a number starting from 0
+// for example: idle0.png, idle1.png, idle2.png, up0.png, up1.png, up2.png, etc
 export async function discoverFrames(character) {
     const frames = state.characterFrames[character] || (state.characterFrames[character] = {});
+    // For each animation direction, probe images named `name0.png, name1.png, ...`
+    // and count how many exist by testing until one fails to load.
     for (const name of CONFIG.directions) {
         let count = 0;
         while (await imageExists(`${character}/${name}${count}.png`)) {
@@ -39,6 +45,10 @@ export async function preloadSprites(character) {
         }
     }
     await Promise.all(jobs);
+    // After preloading, convert each sprite to a data URL so it can be set as a
+    // CSS background-image. This avoids browser redraws / caching issues and lets
+    // us swap sprites instantly without re-fetching from the server.
+    // some issues may happen if disconecter from internet while on multiplayer, but thats fixable
     for (const name of CONFIG.directions) {
         for (let i = 0; i < (frames[name] || 0); i++) {
             const src = `${character}/${name}${i}.png`;
@@ -59,6 +69,8 @@ export async function preloadSprites(character) {
     state.preloadedCharacters.add(character);
 }
 
+// Returns the data-URL version of a sprite for use as a CSS background.
+// Falls back to the raw path (or lazy-converts on demand) if not yet converted.
 export function spriteBackground(src) {
     if (state.spriteDataUrls.has(src)) return state.spriteDataUrls.get(src);
     const img = state.imageCache[src];
@@ -128,7 +140,8 @@ export function loadImage(src) {
         img.src = src;
     });
 }
-
+// This is sort of a workaround for black backround lines appearing between tiles on some browsers
+// Just put a seamless gap color for the specific tile used and fine
 export async function loadTileColors() {
     const canvas = document.createElement("canvas");
     const ctx = canvas.getContext("2d");
@@ -143,8 +156,11 @@ export async function loadTileColors() {
         try {
             data = ctx.getImageData(0, 0, canvas.width, canvas.height).data;
         } catch (e) {
+            // Reading pixel data fails cross-origin (tiled canvases); skip averaging for this tile
             continue;
         }
+        // Average the RGB of all non-transparent pixels to derive a representative
+        // background color for the tile (used to fill gaps between tile edges).
         let r = 0, g = 0, b = 0, count = 0;
         for (let i = 0; i < data.length; i += 4) {
             if (data[i + 3] < 50) continue;

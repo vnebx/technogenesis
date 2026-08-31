@@ -4,7 +4,7 @@ import { applySeed, syncRemovedTrees, updateCamera } from "./tiles.js";
 import { syncGroundItems } from "./grounditems.js";
 import { updateRemotePlayers } from "./remote.js";
 import { renderInventory, normalizeInventorySlot } from "./inventory.js";
-
+// You shall not touch this code, net issues are a pain to debug
 function getServerId() {
     const urlParams = new URLSearchParams(window.location.search);
     return urlParams.get("server") || "";
@@ -34,7 +34,7 @@ export function sendPlayerUpdate() {
     state.ws.send(payload);
     state.lastSentSnapshot = payload;
 }
-
+// May need to move network world actions to a separate file, butits not a big deal
 export function sendRemoveTree(key) {
     if (!state.ws || state.ws.readyState !== WebSocket.OPEN) return;
     state.ws.send(JSON.stringify({ operation: "remove_tree", tree: key }));
@@ -124,6 +124,7 @@ export function connectToServer() {
             const protocol = window.location.protocol === "https:" ? "wss" : "ws";
             state.ws = new WebSocket(`${protocol}://${window.location.host}/ws?server=${encodeURIComponent(serverId)}`);
 
+            // Promise resolves once the server acknowledges us with a "welcome" message (connection established)
             return new Promise((resolve, reject) => {
                 state.ws.onopen = () => state.ws.send(JSON.stringify({ token: data.token }));
                 state.ws.onmessage = async (event) => {

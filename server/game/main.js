@@ -30,6 +30,9 @@ const settings = loadSettings();
 applySettings(settings);
 
 (() => {
+    // Mobile-only entry: browsers require a user gesture before entering fullscreen.
+    // Show a start overlay that requests fullscreen, then begins the game once it's active.
+    // I may change this for an automtic fullscreen one, but by now it works well
     const startEl = document.getElementById("mobile-start");
     const startBtn = document.getElementById("fullscreen-start");
     if (!isTouchDevice() || !startEl) return;
@@ -47,11 +50,13 @@ applySettings(settings);
 
     startBtn.addEventListener("click", () => {
         startBtn.textContent = "Starting...";
+        // If fullscreen isn't supported, just start after a short delay
         if (!el.requestFullscreen && !el.webkitRequestFullscreen) {
             setTimeout(startGame, 120);
             return;
         }
         reqFullscreen();
+        // Start on the fullscreenchange event (with a fallback timeout in case it never fires)
         const done = () => startGame();
         document.addEventListener("fullscreenchange", done, { once: true });
         document.addEventListener("webkitfullscreenchange", done, { once: true });

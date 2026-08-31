@@ -1,6 +1,6 @@
 import { CONFIG, state } from "./state.js";
 import { getCharacterFrames, ensureRemoteCharacter, spriteBackground } from "./sprites.js";
-
+// Players animation and movement handling for remote players, may need a change if new player actions are introduced
 export function createRemotePlayer(playerId) {
     const player = document.createElement("div");
     player.style.width = `${CONFIG.tileWidth}px`;
@@ -48,8 +48,10 @@ export function updateRemotePlayers(players) {
         const animation = frames[rawAnimation] ? rawAnimation : "idlebackward";
         const target = state.remoteTargets.get(playerId);
         if (target && target.character === remoteChar) {
+            // Already tracking this player: update the destination and interpolate toward it.
             target.tx = s.position.x;
             target.ty = s.position.y;
+            // If the gap is very large (e.g. player teleported), snap instantly instead of interpolating
             const gap = Math.hypot(s.position.x - target.x, s.position.y - target.y);
             if (gap > CONFIG.tileWidth * 3) {
                 target.x = s.position.x;
@@ -91,6 +93,7 @@ export function updateRemotePlayersRender(dt) {
         const dy = target.ty - target.y;
         const dist = Math.hypot(dx, dy);
         if (dist > 0.5) {
+            // Move toward the target each frame; speed up (4x) when far behind to catch up
             const catchUp = dist > CONFIG.moveSpeed ? CONFIG.moveSpeed * 4 : CONFIG.moveSpeed;
             const step = Math.min(dist, catchUp * dt);
             target.x += (dx / dist) * step;

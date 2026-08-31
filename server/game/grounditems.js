@@ -7,6 +7,8 @@ export function groundItemPixelSize() {
     return Math.round(CONFIG.GROUND_ITEM_BASE_SIZE * CONFIG.GROUND_ITEM_SCALE);
 }
 
+// Simple string hash (djb2-like) to derive a stable pseudo-random value from an ID string.
+// Since it's deterministic, it's used for the per-item bob phase so each item bobs off-beat.
 export function hashString(str) {
     let h = 0;
     for (let i = 0; i < str.length; i++) {
@@ -57,6 +59,7 @@ export function updateGroundItemAnimation() {
     for (const item of state.groundItems) {
         const el = state.groundItemEls.get(item.id);
         if (!el) continue;
+        // Phase derived from item id in [0, 2π); vary the vertical bob offset per item
         const phase = (hashString(item.id) % 628) / 100;
         const bob = Math.sin(now / 600 + phase) * CONFIG.GROUND_ITEM_BOB_AMPLITUDE;
         el.style.left = `${Math.round(item.x - size / 2)}px`;

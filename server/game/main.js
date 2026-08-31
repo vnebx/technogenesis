@@ -65,6 +65,42 @@ let tooltipEl = null;
 const slotElements = [];
 let touchDrag = null;
 
+const SETTINGS_KEY = "technogenesis_mobile_settings";
+const DEFAULT_SETTINGS = { joystick: 150, inventory: 3, useBtn: 80, invBtn: 50 };
+let settings = loadSettings();
+
+function loadSettings() {
+    try {
+        const raw = localStorage.getItem(SETTINGS_KEY);
+        if (raw) return Object.assign({}, DEFAULT_SETTINGS, JSON.parse(raw));
+    } catch (e) {}
+    return Object.assign({}, DEFAULT_SETTINGS);
+}
+
+function saveSettings() {
+    try { localStorage.setItem(SETTINGS_KEY, JSON.stringify(settings)); } catch (e) {}
+}
+
+function clampSetting(v, min, max) { return Math.max(min, Math.min(max, v)); }
+
+function applySettings() {
+    settings.joystick = clampSetting(Number(settings.joystick) || DEFAULT_SETTINGS.joystick, 90, 240);
+    settings.inventory = clampSetting(Number(settings.inventory) || DEFAULT_SETTINGS.inventory, 2, 5);
+    settings.useBtn = clampSetting(Number(settings.useBtn) || DEFAULT_SETTINGS.useBtn, 55, 130);
+    settings.invBtn = clampSetting(Number(settings.invBtn) || DEFAULT_SETTINGS.invBtn, 40, 90);
+
+    const root = document.documentElement.style;
+    root.setProperty("--joy-size", `${settings.joystick}px`);
+    root.setProperty("--joy-knob", `${Math.round(58 * settings.joystick / 150)}px`);
+    root.setProperty("--inv-scale", settings.inventory);
+    root.setProperty("--btn-use-size", `${settings.useBtn}px`);
+    root.setProperty("--btn-inv-size", `${settings.invBtn}px`);
+    joystickRadius = Math.round(52 * settings.joystick / 150);
+    if (inventoryEl) {
+        inventoryEl.style.gridTemplateColumns = `repeat(${INVENTORY_COLS}, calc(18px * var(--inv-scale)))`;
+    }
+}
+
 const ITEM_IMAGE_PATH = "assets/ui/items/";
 const MAX_STACK = 64;
 const INVENTORY_TEXT_SCALE = 0.9;
@@ -129,8 +165,8 @@ let joystickKnobEl = null;
 let joystickTouchId = null;
 let joystickCenterX = 0;
 let joystickCenterY = 0;
-const JOYSTICK_RADIUS = 52;
 const JOYSTICK_DEADZONE = 14;
+let joystickRadius = 52;
 
 function imageExists(src) {
     return new Promise((resolve) => {
@@ -569,12 +605,12 @@ function hideItemTooltip() {
 }
 
 function createInventoryUI() {
-    document.documentElement.style.setProperty('--inv-scale', INVENTORY_SCALE);
+    document.documentElement.style.setProperty('--inv-scale', settings.inventory);
     document.documentElement.style.setProperty('--inv-text-scale', INVENTORY_TEXT_SCALE);
 
     inventoryEl = document.createElement("div");
     inventoryEl.id = "inventory";
-    inventoryEl.style.gridTemplateColumns = `repeat(${INVENTORY_COLS}, calc(18px * ${INVENTORY_SCALE}))`;
+    inventoryEl.style.gridTemplateColumns = `repeat(${INVENTORY_COLS}, calc(18px * var(--inv-scale)))`;
     inventoryEl.style.display = inventoryVisible ? "grid" : "none";
 
     cursorItemEl = document.createElement("div");
@@ -1439,9 +1475,9 @@ function updateJoystick(touch) {
     let dx = touch.clientX - joystickCenterX;
     let dy = touch.clientY - joystickCenterY;
     const dist = Math.hypot(dx, dy);
-    if (dist > JOYSTICK_RADIUS) {
-        dx = (dx / dist) * JOYSTICK_RADIUS;
-        dy = (dy / dist) * JOYSTICK_RADIUS;
+    if (dist > joystickRadius) {
+        dx = (dx / dist) * joystickRadius;
+        dy = (dy / dist) * joystickRadius;
     }
     joystickKnobEl.style.transform = `translate(${dx}px, ${dy}px)`;
 
@@ -1493,6 +1529,99 @@ function createMobileButtons() {
     invBtn.style.justifyContent = "center";
 }
 
+function createSettingsMenu() {
+    const gearBtn = document.createElement("button");
+    gearBtn.id = "mobile-settings-btn";
+    gearBtn.textContent = "\u2699";
+    gearBtn.setAttribute("aria-label", "Settings");
+
+    const panel = document.createElement("div");
+    panel.id = "settings-panel";
+
+    const header = document.createElement("div");
+    header.className = "settings-header";
+    const title = document.createElement("h2");
+    title.textContent = "Settings";
+    const closeBtn = document.createElement("button");
+    closeBtn.className = "settings-close";
+    closeBtn.textContent = "X";
+    header.appendChild(title);
+    header.appendChild(closeBtn);
+    panel.appendChild(header);
+
+    const rows = [
+        { key: "joystick", label: "Joystick size", min: 90, max: 240, step: 5, unit: "px", display: (v) => `${v}px` },
+        { key: "inventory", label: "Inventory size", min: 2, max: 5, step: 0.5, unit: "", display: (v) => `${v}x` },
+        { key: "useBtn", label: "USE button size", min: 55, max: 130, step: 5, unit: "px", display: (v) => `${v}px` },
+        { key: "invBtn", label: "INV button size", min: 40, max: 90, step: 5, unit: "px", display: (v) => `${v}px` },
+    ];
+
+    rows.forEach((row) => {
+        const wrap = document.createElement("div");
+        wrap.className = "settings-row";
+        const label = document.createElement("label");
+        label.textContent = row.label;
+        wrap.appendChild(label);
+
+        const control = document.createElement("div");
+        control.className = "settings-control";
+        const slider = document.createElement("input");
+        slider.type = "range";
+        slider.min = String(row.min);
+        slider.max = String(row.max);
+        slider.step = String(row.step);
+        slider.value = String(settings[row.key]);
+        const valueEl = document.createElement("span");
+        valueEl.className = "settings-value";
+        valueEl.textContent = row.display(settings[row.key]);
+
+        slider.addEventListener("input", () => {
+            const v = Number(slider.value);
+            settings[row.key] = v;
+            valueEl.textContent = row.display(v);
+            applySettings();
+            saveSettings();
+        });
+
+        const resetBtn = document.createElement("button");
+        resetBtn.className = "settings-reset";
+        resetBtn.textContent = "\u21ba";
+        resetBtn.setAttribute("aria-label", `Reset ${row.label}`);
+        resetBtn.addEventListener("touchstart", (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            const def = DEFAULT_SETTINGS[row.key];
+            settings[row.key] = def;
+            slider.value = String(def);
+            valueEl.textContent = row.display(def);
+            applySettings();
+            saveSettings();
+        }, { passive: false });
+
+        control.appendChild(slider);
+        control.appendChild(valueEl);
+        control.appendChild(resetBtn);
+        wrap.appendChild(control);
+        panel.appendChild(wrap);
+    });
+
+    gearBtn.addEventListener("touchstart", (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        panel.setAttribute("data-open", "true");
+    }, { passive: false });
+    closeBtn.addEventListener("touchstart", (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        panel.setAttribute("data-open", "false");
+    }, { passive: false });
+
+    document.body.appendChild(gearBtn);
+    document.body.appendChild(panel);
+    gearBtn.style.display = "flex";
+    applySettings();
+}
+
 function startGame() {
     if (initStarted) return;
     initStarted = true;
@@ -1507,6 +1636,7 @@ async function init() {
     if (isTouchDevice) {
         createJoystick();
         createMobileButtons();
+        createSettingsMenu();
     }
 
     appEl = document.createElement("div");

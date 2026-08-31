@@ -22,8 +22,12 @@ body, html {
 }
 
 :root {
-    --inv-scale: 2;
+    --inv-scale: 3;
     --inv-text-scale: 1;
+    --joy-size: 150px;
+    --joy-knob: 58px;
+    --btn-use-size: 80px;
+    --btn-inv-size: 50px;
 }
 
 #viewport {
@@ -198,8 +202,8 @@ body, html {
     position: fixed;
     left: max(20px, env(safe-area-inset-left));
     bottom: max(20px, env(safe-area-inset-bottom));
-    width: 150px;
-    height: 150px;
+    width: var(--joy-size);
+    height: var(--joy-size);
     z-index: 30;
     touch-action: none;
     pointer-events: auto;
@@ -215,10 +219,10 @@ body, html {
     position: absolute;
     left: 50%;
     top: 50%;
-    width: 58px;
-    height: 58px;
-    margin-left: -29px;
-    margin-top: -29px;
+    width: var(--joy-knob);
+    height: var(--joy-knob);
+    margin-left: calc(var(--joy-knob) / -2);
+    margin-top: calc(var(--joy-knob) / -2);
     border-radius: 50%;
     border: 3px solid rgba(255, 255, 255, 0.85);
     background: rgba(255, 255, 255, 0.45);
@@ -233,8 +237,8 @@ body, html {
     position: fixed;
     bottom: max(24px, env(safe-area-inset-bottom));
     right: max(24px, env(safe-area-inset-right));
-    width: 80px;
-    height: 80px;
+    width: var(--btn-use-size);
+    height: var(--btn-use-size);
     border-radius: 50%;
     border: 3px solid rgba(255, 255, 255, 0.85);
     background: rgba(255, 255, 255, 0.45);
@@ -256,9 +260,9 @@ body, html {
 #mobile-inv-btn {
     position: fixed;
     bottom: max(24px, env(safe-area-inset-bottom));
-    right: max(114px, calc(env(safe-area-inset-right) + 90px));
-    width: 50px;
-    height: 50px;
+    right: calc(max(24px, env(safe-area-inset-right)) + var(--btn-use-size) + 10px);
+    width: var(--btn-inv-size);
+    height: var(--btn-inv-size);
     border-radius: 10px;
     border: 3px solid rgba(255, 255, 255, 0.85);
     background: rgba(255, 255, 255, 0.45);
@@ -275,6 +279,113 @@ body, html {
 #mobile-inv-btn:active {
     background: rgba(255, 255, 255, 0.7);
 }
+
+/* Settings */
+#mobile-settings-btn {
+    position: fixed;
+    top: max(14px, env(safe-area-inset-top));
+    right: max(14px, env(safe-area-inset-right));
+    width: 44px;
+    height: 44px;
+    border-radius: 8px;
+    border: 3px solid rgba(255, 255, 255, 0.85);
+    background: rgba(255, 255, 255, 0.45);
+    color: #fff;
+    font-size: 1.2rem;
+    line-height: 1;
+    z-index: 35;
+    display: none;
+    align-items: center;
+    justify-content: center;
+    touch-action: none;
+    pointer-events: auto;
+    -webkit-tap-highlight-color: transparent;
+    text-shadow: 1px 1px 0 #000;
+}
+#mobile-settings-btn:active { background: rgba(255, 255, 255, 0.7); }
+
+#settings-panel {
+    position: fixed;
+    top: 0;
+    right: 0;
+    bottom: 0;
+    width: min(320px, 85vw);
+    z-index: 40;
+    background: rgba(13, 17, 23, 0.96);
+    border-left: 2px solid #30363d;
+    font-family: 'Silkscreen', monospace;
+    color: #e6edf3;
+    padding: 1rem;
+    box-sizing: border-box;
+    display: none;
+    flex-direction: column;
+    touch-action: none;
+    overflow-y: auto;
+}
+#settings-panel[data-open="true"] { display: flex; }
+.settings-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 1rem;
+}
+.settings-header h2 {
+    font-size: 1rem;
+    letter-spacing: 0.05em;
+    margin: 0;
+}
+.settings-close {
+    background: transparent;
+    border: 2px solid #8b949e;
+    color: #e6edf3;
+    font-family: inherit;
+    font-size: 0.85rem;
+    padding: 0.3rem 0.6rem;
+    cursor: pointer;
+}
+.settings-row {
+    margin-bottom: 1.1rem;
+}
+.settings-row label {
+    display: block;
+    font-size: 0.7rem;
+    color: #8b949e;
+    margin-bottom: 0.4rem;
+}
+.settings-control {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+.settings-control input[type="range"] {
+    flex: 1;
+    min-width: 0;
+    accent-color: #1f6feb;
+    height: 30px;
+}
+.settings-value {
+    font-size: 0.7rem;
+    color: #e6edf3;
+    min-width: 2.8rem;
+    text-align: right;
+}
+.settings-reset {
+    width: 34px;
+    height: 34px;
+    flex: 0 0 auto;
+    border: 2px solid #8b949e;
+    border-radius: 6px;
+    background: transparent;
+    color: #e6edf3;
+    font-size: 1rem;
+    line-height: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    -webkit-tap-highlight-color: transparent;
+}
+.settings-reset:active { background: rgba(255, 255, 255, 0.2); }
 
 @media (pointer: coarse) {
     .mobile-start-sub { font-size: 0.7rem; }

@@ -39,6 +39,7 @@ export const state = {
     tooltipEl: null,
     slotElements: [],
     touchDrag: null,
+    isTouching: false,
 
     seed: [],
     playerWorldX: 0,

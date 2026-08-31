@@ -221,6 +221,7 @@ window.addEventListener("mouseleave", () => {
 
 window.addEventListener("mousedown", (e) => {
     if (e.button === 0) {
+        if (state.isTouching) return;
         if (state.cursorItem && state.inventoryEl && !state.inventoryEl.contains(e.target) && e.target !== state.cursorItemEl) {
             dropCursorItem();
         }

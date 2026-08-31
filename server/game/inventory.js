@@ -163,6 +163,11 @@ export function toggleInventory() {
 
 function setupInventoryInput() {
     if (!isTouchDevice()) return;
+
+    window.addEventListener("touchstart", () => { state.isTouching = true; }, { passive: true });
+    window.addEventListener("touchend", () => { state.isTouching = false; }, { passive: true });
+    window.addEventListener("touchcancel", () => { state.isTouching = false; }, { passive: true });
+
     window.addEventListener("touchmove", (e) => {
         if (!state.touchDrag) return;
         for (const touch of e.changedTouches) {
@@ -257,6 +262,7 @@ export function createInventoryUI(settings) {
 
         slot.addEventListener("mousedown", (e) => {
             e.preventDefault();
+            if (state.isTouching) return;
             const index = parseInt(slot.dataset.index, 10);
             if (e.button === 0) {
                 if (state.cursorItem) {
@@ -301,6 +307,7 @@ export function createInventoryUI(settings) {
     setupInventoryInput();
 
     document.addEventListener("mousemove", (e) => {
+        if (state.isTouching) return;
         if (state.cursorItemEl) {
             state.cursorItemEl.style.left = `${e.clientX / state.scaleX}px`;
             state.cursorItemEl.style.top = `${e.clientY / state.scaleY}px`;

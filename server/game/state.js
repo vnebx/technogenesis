@@ -58,6 +58,7 @@ export const state = {
     GAME_W: 0,
     GAME_H: 0,
     baselineDPR: 1,
+    lastAppTransform: "",
     scaleX: 1,
     scaleY: 1,
     cameraX: 0,

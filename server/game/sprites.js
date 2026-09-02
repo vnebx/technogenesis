@@ -37,36 +37,49 @@ export async function preloadSprites(character) {
     for (const name of CONFIG.directions) {
         for (let i = 0; i < (frames[name] || 0); i++) {
             const src = `${character}/${name}${i}.png`;
-            if (state.imageCache[src]) continue;
-            const img = new Image();
-            img.src = src;
-            state.imageCache[src] = img;
-            jobs.push(img.decode ? img.decode().catch(() => {}) : Promise.resolve());
+            if (state.imageCache[src]) {
+                // Already cached from a previous load: convert it if not yet converted.
+                convertToDataUrl(src);
+                continue;
+            }
+            // Load via the image's onload event (NOT img.decode()). decode() can
+            // resolve before the loader has set `complete`/`naturalWidth`, so frames
+            // would be skipped and later fall back to a raw network path, which made
+            // the player sprite flicker for a few seconds while it re-fetched them.
+            jobs.push(loadIntoCache(src).then(() => convertToDataUrl(src)));
         }
     }
     await Promise.all(jobs);
-    // After preloading, convert each sprite to a data URL so it can be set as a
-    // CSS background-image. This avoids browser redraws / caching issues and lets
-    // us swap sprites instantly without re-fetching from the server.
-    // some issues may happen if disconecter from internet while on multiplayer, but thats fixable
-    for (const name of CONFIG.directions) {
-        for (let i = 0; i < (frames[name] || 0); i++) {
-            const src = `${character}/${name}${i}.png`;
-            const img = state.imageCache[src];
-            if (img && img.complete && img.naturalWidth > 0 && !state.spriteDataUrls.has(src)) {
-                try {
-                    const canvas = document.createElement("canvas");
-                    canvas.width = img.naturalWidth;
-                    canvas.height = img.naturalHeight;
-                    canvas.getContext("2d").drawImage(img, 0, 0);
-                    state.spriteDataUrls.set(src, canvas.toDataURL("image/png"));
-                } catch (e) {
-                    /* keep raw path fallback */
-                }
-            }
-        }
-    }
     state.preloadedCharacters.add(character);
+}
+
+// Loads an image into the shared cache and resolves only after its pixels are
+// fully decoded (guaranteeing complete/naturalWidth are valid for canvas drawImage).
+function loadIntoCache(src) {
+    return new Promise((resolve) => {
+        const img = new Image();
+        img.onload = () => resolve();
+        img.onerror = () => resolve();
+        state.imageCache[src] = img;
+        img.src = src;
+    });
+}
+
+// Converts a cached, fully-loaded sprite into a data URL and stores it. No-op if
+// the sprite is already converted or the image is not yet usable.
+function convertToDataUrl(src) {
+    const img = state.imageCache[src];
+    if (!img || !img.complete || img.naturalWidth <= 0) return;
+    if (state.spriteDataUrls.has(src)) return;
+    try {
+        const canvas = document.createElement("canvas");
+        canvas.width = img.naturalWidth;
+        canvas.height = img.naturalHeight;
+        canvas.getContext("2d").drawImage(img, 0, 0);
+        state.spriteDataUrls.set(src, canvas.toDataURL("image/png"));
+    } catch (e) {
+        /* keep raw path fallback */
+    }
 }
 
 // Returns the data-URL version of a sprite for use as a CSS background.
@@ -75,17 +88,9 @@ export function spriteBackground(src) {
     if (state.spriteDataUrls.has(src)) return state.spriteDataUrls.get(src);
     const img = state.imageCache[src];
     if (img && img.complete && img.naturalWidth > 0) {
-        try {
-            const canvas = document.createElement("canvas");
-            canvas.width = img.naturalWidth;
-            canvas.height = img.naturalHeight;
-            canvas.getContext("2d").drawImage(img, 0, 0);
-            const url = canvas.toDataURL("image/png");
-            state.spriteDataUrls.set(src, url);
-            return url;
-        } catch (e) {
-            return src;
-        }
+        convertToDataUrl(src);
+        const url = state.spriteDataUrls.get(src);
+        if (url) return url;
     }
     return src;
 }

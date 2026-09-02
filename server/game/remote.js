@@ -13,6 +13,9 @@ export function createRemotePlayer(playerId) {
     player.style.backgroundRepeat = "no-repeat";
     player.style.zIndex = "10";
     player.style.pointerEvents = "none";
+    // Own compositor layer so sprite-background swaps don't repaint the viewport.
+    player.style.transform = "translateZ(0)";
+    player.style.willChange = "transform";
     state.viewportEl.appendChild(player);
     state.remotePlayers.set(playerId, player);
     return player;

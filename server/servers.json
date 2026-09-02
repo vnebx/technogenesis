@@ -1,0 +1,24 @@
+{
+  "servers": [
+    {
+      "id": "bnvexu",
+      "name": "Singleplayer",
+      "owner": "90fec8d9-b05c-4dd2-a3e2-e2af5e05d829",
+      "singleplayer": true,
+      "visibility": "private",
+      "password_hash": null,
+      "seed": null,
+      "created_at": "2026-09-02T17:22:27.212243+00:00"
+    },
+    {
+      "id": "anwzpw",
+      "name": "adawdwa",
+      "owner": "90fec8d9-b05c-4dd2-a3e2-e2af5e05d829",
+      "singleplayer": false,
+      "visibility": "public",
+      "password_hash": null,
+      "seed": null,
+      "created_at": "2026-09-02T21:56:01.173721+00:00"
+    }
+  ]
+}

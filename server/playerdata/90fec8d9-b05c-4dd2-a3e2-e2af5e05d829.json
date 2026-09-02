@@ -76,6 +76,74 @@
         null,
         null
       ]
+    },
+    "bnvexu": {
+      "position": {
+        "x": 118.62073159852845,
+        "y": -679.2705580330875
+      },
+      "animation": "left",
+      "character": "assets/characters/basicrobot",
+      "inventory": [
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null
+      ]
+    },
+    "anwzpw": {
+      "position": {
+        "x": -3.0216969109493297,
+        "y": -66.675290039756
+      },
+      "animation": "forward",
+      "character": "assets/characters/basicrobot",
+      "inventory": [
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null
+      ]
     }
   }
 }

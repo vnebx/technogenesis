@@ -75,6 +75,11 @@ function createPlayer() {
     state.playerEl.style.backgroundPosition = "center";
     state.playerEl.style.backgroundRepeat = "no-repeat";
     state.playerEl.style.zIndex = "10";
+    // Promote the player to its own GPU-composited layer so swapping its
+    // background sprite each animation frame composites independently instead of
+    // repainting the whole viewport (which caused flicker while moving).
+    state.playerEl.style.transform = "translateZ(0)";
+    state.playerEl.style.willChange = "transform";
     state.viewportEl.appendChild(state.playerEl);
     updatePlayerSprite();
 }
@@ -89,7 +94,10 @@ function createHud() {
 function updateCoords() {
     const x = Math.floor(state.playerWorldX / CONFIG.tileWidth);
     const y = Math.floor(state.playerWorldY / CONFIG.tileWidth);
-    state.coordEl.textContent = `x: ${x}  y: ${y}`;
+    const text = `x: ${x}  y: ${y}`;
+    if (state.coordEl.textContent !== text) {
+        state.coordEl.textContent = text;
+    }
 }
 
 function updatePlayerSprite() {
@@ -145,11 +153,11 @@ function applyCanvasTransform() {
         }
     }
 
-    if (zoomedOut) {
+    const appTransform = zoomedOut ? `scale(${1 / zoom})` : "";
+    if (state.lastAppTransform !== appTransform) {
+        state.lastAppTransform = appTransform;
         state.appEl.style.transformOrigin = "0 0";
-        state.appEl.style.transform = `scale(${1 / zoom})`;
-    } else if (state.appEl.style.transform) {
-        state.appEl.style.transform = "";
+        state.appEl.style.transform = appTransform;
     }
 
     state.scaleX = 1;

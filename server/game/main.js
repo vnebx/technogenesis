@@ -115,9 +115,28 @@ function applyCanvasTransform() {
     if (!state.appEl) return;
     const newW = Math.max(1, Math.round(window.innerWidth));
     const newH = Math.max(1, Math.round(window.innerHeight));
-    if (state.GAME_W === 0 || newW !== state.GAME_W || newH !== state.GAME_H) {
-        state.GAME_W = newW;
-        state.GAME_H = newH;
+
+    // Zooming the browser below 100% reveals more of the world than a player
+    // should be able to see. The devicePixelRatio compared against the value
+    // captured at startup tells us the current zoom. When zoomed out we keep the
+    // logical (100%) viewport size constant and counter-scale the app so the
+    // visible world is identical no matter how far out the user zooms.
+    const baseline = state.baselineDPR || window.devicePixelRatio || 1;
+    const zoom = window.devicePixelRatio / baseline;
+    const zoomedOut = baseline > 0 && zoom > 0 && zoom < 1;
+
+    let gw = newW;
+    let gh = newH;
+    if (zoomedOut) {
+        // innerWidth grows as the browser zooms out; multiplying by zoom cancels
+        // that growth so the logical viewport stays at the 100% equivalent size.
+        gw = Math.max(1, Math.round(newW * zoom));
+        gh = Math.max(1, Math.round(newH * zoom));
+    }
+
+    if (state.GAME_W === 0 || gw !== state.GAME_W || gh !== state.GAME_H) {
+        state.GAME_W = gw;
+        state.GAME_H = gh;
         state.appEl.style.width = `${state.GAME_W}px`;
         state.appEl.style.height = `${state.GAME_H}px`;
         if (state.viewportEl) {
@@ -126,9 +145,15 @@ function applyCanvasTransform() {
         }
     }
 
+    if (zoomedOut) {
+        state.appEl.style.transformOrigin = "0 0";
+        state.appEl.style.transform = `scale(${1 / zoom})`;
+    } else if (state.appEl.style.transform) {
+        state.appEl.style.transform = "";
+    }
+
     state.scaleX = 1;
     state.scaleY = 1;
-    if (state.appEl.style.transform) state.appEl.style.transform = "";
 }
 
 function gameLoop(time) {
@@ -257,6 +282,9 @@ function startGame() {
 async function init() {
     state.GAME_W = window.innerWidth;
     state.GAME_H = window.innerHeight;
+    // Capture the devicePixelRatio at startup; it represents 100% zoom and is the
+    // baseline used to detect browser zoom-out so the world view can be locked.
+    state.baselineDPR = window.devicePixelRatio || 1;
 
     if (isTouchDevice()) {
         createJoystick();

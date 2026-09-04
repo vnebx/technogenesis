@@ -20,7 +20,7 @@ import { updateRemotePlayersRender } from "./remote.js";
 import { getMovementState, clearMovementKeys } from "./input.js";
 import { connectToServer, fetchLocalPlayerData, sendPlayerUpdate } from "./net.js";
 import { startUse } from "./gameplay.js";
-import { isTouchDevice, createJoystick, createMobileButtons, createSettingsMenu } from "./mobile.js";
+import { isTouchDevice, createJoystick, createMobileButtons, createSettingsMenu, initMobileViewport } from "./mobile.js";
 
 const urlParams = new URLSearchParams(window.location.search);
 const serverId = urlParams.get("server") || "";
@@ -32,41 +32,6 @@ if (!serverId) {
 const settings = loadSettings();
 
 applySettings(settings);
-
-(() => {
-    // Mobile-only entry: browsers require a user gesture before entering fullscreen.
-    // Show a start overlay that requests fullscreen, then begins the game once it's active.
-    // I may change this for an automtic fullscreen one, but by now it works well
-    const startEl = document.getElementById("mobile-start");
-    const startBtn = document.getElementById("fullscreen-start");
-    if (!isTouchDevice() || !startEl) return;
-
-    startEl.hidden = false;
-
-    const el = document.documentElement;
-    const reqFullscreen = () => {
-        const req = el.requestFullscreen || el.webkitRequestFullscreen;
-        if (req) {
-            const p = req.call(el);
-            if (p && p.catch) p.catch(() => {});
-        }
-    };
-
-    startBtn.addEventListener("click", () => {
-        startBtn.textContent = "Starting...";
-        // If fullscreen isn't supported, just start after a short delay
-        if (!el.requestFullscreen && !el.webkitRequestFullscreen) {
-            setTimeout(startGame, 120);
-            return;
-        }
-        reqFullscreen();
-        // Start on the fullscreenchange event (with a fallback timeout in case it never fires)
-        const done = () => startGame();
-        document.addEventListener("fullscreenchange", done, { once: true });
-        document.addEventListener("webkitfullscreenchange", done, { once: true });
-        setTimeout(done, 900);
-    });
-})();
 
 function createPlayer() {
     state.playerEl = document.createElement("div");
@@ -140,8 +105,7 @@ function updatePlayerSprite() {
 
 function applyCanvasTransform() {
     if (!state.appEl) return;
-    const newW = Math.max(1, Math.round(window.innerWidth));
-    const newH = Math.max(1, Math.round(window.innerHeight));
+    const { w: newW, h: newH } = getViewportSize();
 
     // Zooming the browser below 100% reveals more of the world than a player
     // should be able to see. The devicePixelRatio compared against the value
@@ -300,25 +264,86 @@ window.addEventListener("resize", () => {
     if (state.playerEl) updatePlayerSprite();
 });
 
+function getViewportSize() {
+    const vv = window.visualViewport;
+    return {
+        w: Math.max(1, Math.round(vv?.width ?? window.innerWidth)),
+        h: Math.max(1, Math.round(vv?.height ?? window.innerHeight)),
+    };
+}
+
+function setLoadStatus(text) {
+    if (!state.loadStatusEl) {
+        state.loadStatusEl = document.createElement("div");
+        state.loadStatusEl.id = "load-status";
+        state.loadStatusEl.style.position = "fixed";
+        state.loadStatusEl.style.inset = "0";
+        state.loadStatusEl.style.display = "flex";
+        state.loadStatusEl.style.alignItems = "center";
+        state.loadStatusEl.style.justifyContent = "center";
+        state.loadStatusEl.style.color = "#fff";
+        state.loadStatusEl.style.fontFamily = "'Silkscreen', monospace";
+        state.loadStatusEl.style.fontSize = "14px";
+        state.loadStatusEl.style.zIndex = "2000";
+        state.loadStatusEl.style.pointerEvents = "none";
+        state.loadStatusEl.style.background = "rgba(0, 0, 0, 0.35)";
+        document.body.appendChild(state.loadStatusEl);
+    }
+    state.loadStatusEl.textContent = text || "";
+    state.loadStatusEl.style.display = text ? "flex" : "none";
+}
+
+function hideLoadStatus() {
+    setLoadStatus("");
+}
+
+function beginGameLoop() {
+    if (state.gameLoopStarted) return;
+    state.gameLoopStarted = true;
+    requestAnimationFrame(gameLoop);
+}
+
+async function connectWithRetry(maxAttempts = 5) {
+    let lastError = null;
+    for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+        setLoadStatus(attempt === 1 ? "Connecting..." : `Reconnecting (${attempt}/${maxAttempts})...`);
+        try {
+            await connectToServer();
+            hideLoadStatus();
+            return;
+        } catch (err) {
+            lastError = err;
+            if (attempt < maxAttempts) {
+                await new Promise((resolve) => setTimeout(resolve, 1000 * attempt));
+            }
+        }
+    }
+    setLoadStatus("Connection failed. Tap to retry.");
+    document.addEventListener("touchstart", () => connectWithRetry(), { once: true });
+    document.addEventListener("click", () => connectWithRetry(), { once: true });
+    console.error("Failed to connect:", lastError);
+}
+
 function startGame() {
     if (state.initStarted) return;
     state.initStarted = true;
-    const startEl = document.getElementById("mobile-start");
-    if (startEl) startEl.hidden = true;
-    init();
+    init().catch((err) => {
+        console.error("Game init failed:", err);
+        setLoadStatus("Failed to start. Tap to reload.");
+        const reload = () => window.location.reload();
+        document.addEventListener("touchstart", reload, { once: true });
+        document.addEventListener("click", reload, { once: true });
+    });
 }
 
 async function init() {
-    state.GAME_W = window.innerWidth;
-    state.GAME_H = window.innerHeight;
-    // Capture the devicePixelRatio at startup; it represents 100% zoom and is the
-    // baseline used to detect browser zoom-out so the world view can be locked.
+    const { w, h } = getViewportSize();
+    state.GAME_W = w;
+    state.GAME_H = h;
     state.baselineDPR = window.devicePixelRatio || 1;
 
     if (isTouchDevice()) {
-        createJoystick();
-        createMobileButtons();
-        createSettingsMenu(settings);
+        initMobileViewport();
     }
 
     state.appEl = document.createElement("div");
@@ -331,6 +356,7 @@ async function init() {
     state.appEl.style.transformOrigin = "0 0";
     state.appEl.style.background = "#000";
     state.appEl.style.overflow = "hidden";
+    state.appEl.style.zIndex = "1";
     document.body.appendChild(state.appEl);
 
     state.viewportEl = document.createElement("div");
@@ -345,17 +371,40 @@ async function init() {
 
     createHud();
     createInventoryUI(settings);
-    await preloadAllAssets();
-    await fetchLocalPlayerData();
-    await connectToServer();
-    await loadTileColors();
     createPlayer();
     applyCanvasTransform();
     updateCamera();
     updatePlayerSprite();
-    requestAnimationFrame(gameLoop);
+    beginGameLoop();
+
+    if (isTouchDevice()) {
+        createJoystick();
+        createMobileButtons();
+        createSettingsMenu(settings);
+    }
+
+    if (window.visualViewport) {
+        window.visualViewport.addEventListener("resize", () => {
+            applyCanvasTransform();
+            updateCamera();
+            if (state.playerEl) updatePlayerSprite();
+        });
+    }
+
+    setLoadStatus("Loading...");
+
+    try {
+        await preloadAllAssets();
+        updatePlayerSprite();
+        await fetchLocalPlayerData();
+        await loadTileColors();
+        updateCamera();
+        updatePlayerSprite();
+    } catch (err) {
+        console.error("Asset load failed:", err);
+    }
+
+    connectWithRetry();
 }
 
-if (!isTouchDevice() || !document.getElementById("mobile-start")) {
-    startGame();
-}
+startGame();

@@ -21,6 +21,12 @@ body, html {
     overscroll-behavior: none;
 }
 
+@supports (height: 100dvh) {
+    body, html {
+        height: 100dvh;
+    }
+}
+
 :root {
     --inv-scale: 3;
     --inv-text-scale: 1;

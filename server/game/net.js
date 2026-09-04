@@ -124,28 +124,54 @@ export function fetchLocalPlayerData() {
         .catch(() => {});
 }
 
-export function connectToServer() {
+export function connectToServer(timeoutMs = 15000) {
     const serverId = getServerId();
     return fetch(`/api/ws-token?server=${encodeURIComponent(serverId)}`)
-        .then((response) => response.json())
+        .then((response) => {
+            if (!response.ok) throw new Error(`Token request failed (${response.status})`);
+            return response.json();
+        })
         .then((data) => {
+            if (!data.token) throw new Error("Missing WebSocket token");
             const protocol = window.location.protocol === "https:" ? "wss" : "ws";
             state.ws = new WebSocket(`${protocol}://${window.location.host}/ws?server=${encodeURIComponent(serverId)}`);
 
-            // Promise resolves once the server acknowledges us with a "welcome" message (connection established)
             return new Promise((resolve, reject) => {
+                let settled = false;
+                const finish = (fn, value) => {
+                    if (settled) return;
+                    settled = true;
+                    clearTimeout(timer);
+                    fn(value);
+                };
+
+                const timer = setTimeout(
+                    () => finish(reject, new Error("Connection timeout")),
+                    timeoutMs,
+                );
+
                 state.ws.onopen = () => state.ws.send(JSON.stringify({ token: data.token }));
                 state.ws.onmessage = async (event) => {
-                    const message = JSON.parse(event.data);
+                    let message;
+                    try {
+                        message = JSON.parse(event.data);
+                    } catch (e) {
+                        return;
+                    }
                     if (message.type === "welcome") {
                         await handleServerMessage(event);
-                        resolve();
+                        finish(resolve);
                         return;
                     }
                     await handleServerMessage(event);
                 };
-                state.ws.onerror = () => reject(new Error("WebSocket connection failed."));
-                state.ws.onclose = () => { state.ws = null; };
+                state.ws.onerror = () => finish(reject, new Error("WebSocket connection failed."));
+                state.ws.onclose = (event) => {
+                    state.ws = null;
+                    if (!settled) {
+                        finish(reject, new Error(`WebSocket closed (${event.code})`));
+                    }
+                };
             });
         });
 }

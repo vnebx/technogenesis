@@ -6,7 +6,25 @@ import { toggleInventory } from "./inventory.js";
 export function isTouchDevice() {
     return (window.matchMedia && window.matchMedia("(pointer: coarse)").matches) ||
         "ontouchstart" in window || navigator.maxTouchPoints > 0 ||
-        /iPad|iPhone|iPod/i.test(window.navigator.userAgent);
+        /iPad|iPhone|iPod|Android/i.test(window.navigator.userAgent);
+}
+
+function requestMobileFullscreen() {
+    const el = document.documentElement;
+    const req = el.requestFullscreen?.bind(el)
+        || el.webkitRequestFullscreen?.bind(el)
+        || el.webkitEnterFullscreen?.bind(el);
+    if (req) req().catch(() => {});
+}
+
+export function initMobileViewport() {
+    document.documentElement.style.height = "100%";
+    document.body.style.height = "100%";
+    document.body.style.overflow = "hidden";
+    document.body.style.touchAction = "none";
+
+    const enterFullscreen = () => requestMobileFullscreen();
+    document.addEventListener("touchstart", enterFullscreen, { once: true, passive: true });
 }
 
 export function createJoystick() {

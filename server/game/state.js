@@ -83,6 +83,8 @@ export const state = {
     lastUpdateSentAt: 0,
 
     initStarted: false,
+    gameLoopStarted: false,
+    loadStatusEl: null,
 
     joystickEl: null,
     joystickKnobEl: null,

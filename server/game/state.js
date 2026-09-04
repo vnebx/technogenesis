@@ -68,6 +68,7 @@ export const state = {
     scaleY: 1,
     cameraX: 0,
     cameraY: 0,
+    lastWorldTransform: null,
     worldEl: null,
     playerEl: null,
     playerImgEl: null,

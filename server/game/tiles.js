@@ -15,13 +15,16 @@ export function createTileElement(col, row, type, zIndex = "0") {
     tile.className = "tile";
     tile.src = `assets/tiles/${type}.png`;
     tile.style.display = "block";
-    tile.style.width = `${CONFIG.tileWidth}px`;
-    tile.style.height = `${CONFIG.tileWidth}px`;
     tile.style.position = "absolute";
-    tile.style.top = `${row * CONFIG.tileWidth}px`;
-    tile.style.left = `${col * CONFIG.tileWidth}px`;
     tile.style.zIndex = zIndex;
     tile.style.pointerEvents = "none";
+    // 1px bleed: tiles overlap their neighbors by half a pixel on every side so
+    // Chrome's sub-pixel antialiasing can never open a gap to the page background.
+    const bleed = 1;
+    tile.style.width = `${CONFIG.tileWidth + bleed}px`;
+    tile.style.height = `${CONFIG.tileWidth + bleed}px`;
+    tile.style.top = `${row * CONFIG.tileWidth - bleed / 2}px`;
+    tile.style.left = `${col * CONFIG.tileWidth - bleed / 2}px`;
     if ((type === "grass" || type === "water") && state.tileColors[type]) {
         tile.style.backgroundColor = state.tileColors[type];
     }
@@ -101,7 +104,17 @@ export function screenCenterPlayerTop() {
 export function updateCamera() {
     state.cameraX = state.playerWorldX + CONFIG.tileWidth / 2 - state.GAME_W / 2;
     state.cameraY = state.playerWorldY + CONFIG.tileWidth / 2 - state.GAME_H / 2;
-    state.worldEl.style.transform = `translate(${-state.cameraX}px, ${-state.cameraY}px)`;
+    // Snap the world translate to whole device pixels so tiles land on exact
+    // pixel boundaries; fractional translates make Chrome antialias 1px seams
+    // between neighbouring tiles.
+    const dpr = state.baselineDPR || window.devicePixelRatio || 1;
+    const tx = Math.round(-state.cameraX * dpr) / dpr;
+    const ty = Math.round(-state.cameraY * dpr) / dpr;
+    const transform = `translate(${tx}px, ${ty}px)`;
+    if (state.lastWorldTransform !== transform) {
+        state.lastWorldTransform = transform;
+        state.worldEl.style.transform = transform;
+    }
     updateVisibleTiles();
 }
 

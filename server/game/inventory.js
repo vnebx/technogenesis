@@ -198,6 +198,7 @@ function setupInventoryInput() {
                 window.clearTimeout(state.touchDrag.holdTimer);
                 const drag = state.touchDrag;
                 state.touchDrag = null;
+                if (!drag.dragged) break;
                 const el = document.elementFromPoint(touch.clientX, touch.clientY);
                 const targetSlot = el ? el.closest(".slot") : null;
                 if (targetSlot) {
@@ -285,7 +286,17 @@ export function createInventoryUI(settings) {
             e.preventDefault();
             e.stopPropagation();
             const index = parseInt(slot.dataset.index, 10);
-            if (!state.cursorItem) grabFromSlot(index);
+
+            if (state.cursorItem) {
+                placeOnSlot(index);
+                return;
+            }
+
+            grabFromSlot(index);
+            if (state.cursorItemEl) {
+                state.cursorItemEl.style.left = `${touch.clientX}px`;
+                state.cursorItemEl.style.top = `${touch.clientY}px`;
+            }
             state.touchDrag = {
                 touchId: touch.identifier,
                 startX: touch.clientX,

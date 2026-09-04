@@ -15,11 +15,11 @@ export function createTileElement(col, row, type, zIndex = "0") {
     tile.className = "tile";
     tile.src = `assets/tiles/${type}.png`;
     tile.style.display = "block";
-    tile.style.width = `${CONFIG.tileWidth + 2}px`;
-    tile.style.height = `${CONFIG.tileWidth + 2}px`;
+    tile.style.width = `${CONFIG.tileWidth}px`;
+    tile.style.height = `${CONFIG.tileWidth}px`;
     tile.style.position = "absolute";
-    tile.style.top = `${Math.round(row * CONFIG.tileWidth) - 1}px`;
-    tile.style.left = `${Math.round(col * CONFIG.tileWidth) - 1}px`;
+    tile.style.top = `${row * CONFIG.tileWidth}px`;
+    tile.style.left = `${col * CONFIG.tileWidth}px`;
     tile.style.zIndex = zIndex;
     tile.style.pointerEvents = "none";
     if ((type === "grass" || type === "water") && state.tileColors[type]) {
@@ -82,37 +82,26 @@ export function updateVisibleTiles() {
     }
 }
 
-export function getCameraFraction() {
-    return {
-        x: state.cameraX - state.cameraRenderX,
-        y: state.cameraY - state.cameraRenderY,
-    };
-}
-
 export function screenXFromWorld(worldX) {
-    return Math.round((worldX - state.cameraRenderX) * state.scaleX) / state.scaleX;
+    return Math.round((worldX - state.cameraX) * state.scaleX) / state.scaleX;
 }
 
 export function screenYFromWorld(worldY) {
-    return Math.round((worldY - state.cameraRenderY) * state.scaleY) / state.scaleY;
+    return Math.round((worldY - state.cameraY) * state.scaleY) / state.scaleY;
 }
 
 export function screenCenterPlayerLeft() {
-    const frac = getCameraFraction();
-    return Math.round((state.GAME_W / 2 - CONFIG.tileWidth / 2 - frac.x) * state.scaleX) / state.scaleX;
+    return Math.round((state.GAME_W / 2 - CONFIG.tileWidth / 2) * state.scaleX) / state.scaleX;
 }
 
 export function screenCenterPlayerTop() {
-    const frac = getCameraFraction();
-    return Math.round((state.GAME_H / 2 - CONFIG.tileWidth / 2 - frac.y) * state.scaleY) / state.scaleY;
+    return Math.round((state.GAME_H / 2 - CONFIG.tileWidth / 2) * state.scaleY) / state.scaleY;
 }
 
 export function updateCamera() {
     state.cameraX = state.playerWorldX + CONFIG.tileWidth / 2 - state.GAME_W / 2;
     state.cameraY = state.playerWorldY + CONFIG.tileWidth / 2 - state.GAME_H / 2;
-    state.cameraRenderX = Math.round(state.cameraX);
-    state.cameraRenderY = Math.round(state.cameraY);
-    state.worldEl.style.transform = `translate(${-state.cameraRenderX}px, ${-state.cameraRenderY}px)`;
+    state.worldEl.style.transform = `translate(${-state.cameraX}px, ${-state.cameraY}px)`;
     updateVisibleTiles();
 }
 

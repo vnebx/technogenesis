@@ -1,6 +1,19 @@
 import { CONFIG, state } from "./state.js";
 
-// Static manifest of all character animations and frame counts
+export function setupPixelSpriteCanvas(canvas, ctx) {
+    canvas.width = CONFIG.spriteSize;
+    canvas.height = CONFIG.spriteSize;
+    canvas.style.width = `${CONFIG.tileWidth}px`;
+    canvas.style.height = `${CONFIG.tileWidth}px`;
+    canvas.style.display = "block";
+    canvas.style.imageRendering = "pixelated";
+    ctx.imageSmoothingEnabled = false;
+}
+
+export function drawPixelSprite(ctx, img) {
+    ctx.clearRect(0, 0, CONFIG.spriteSize, CONFIG.spriteSize);
+    ctx.drawImage(img, 0, 0, CONFIG.spriteSize, CONFIG.spriteSize);
+}
 export const CHARACTER_MANIFEST = {
     "assets/characters/basicrobot": {
         backward: 2,

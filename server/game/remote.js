@@ -1,5 +1,5 @@
 import { CONFIG, state } from "./state.js";
-import { getCharacterFrames, ensureRemoteCharacter, preloadImage } from "./sprites.js";
+import { getCharacterFrames, ensureRemoteCharacter, preloadImage, setupPixelSpriteCanvas, drawPixelSprite } from "./sprites.js";
 import { screenXFromWorld, screenYFromWorld } from "./tiles.js";
 
 function isIdleAnimation(animation) {
@@ -18,17 +18,11 @@ export function createRemotePlayer(playerId) {
     player.style.pointerEvents = "none";
 
     const canvas = document.createElement("canvas");
-    canvas.width = CONFIG.tileWidth;
-    canvas.height = CONFIG.tileWidth;
-    canvas.style.width = "100%";
-    canvas.style.height = "100%";
-    canvas.style.display = "block";
-    canvas.style.imageRendering = "pixelated";
     canvas.style.pointerEvents = "none";
     player.appendChild(canvas);
 
     const ctx = canvas.getContext("2d");
-    ctx.imageSmoothingEnabled = false;
+    setupPixelSpriteCanvas(canvas, ctx);
     state.remotePlayerCtxs.set(playerId, ctx);
 
     state.viewportEl.appendChild(player);
@@ -151,16 +145,14 @@ export function updateRemotePlayersRender(dt) {
             if (drawn !== spritePath) {
                 state.drawnRemoteSrc.set(playerId, spritePath);
                 if (ctx) {
-                    ctx.clearRect(0, 0, CONFIG.tileWidth, CONFIG.tileWidth);
-                    ctx.drawImage(img, 0, 0, CONFIG.tileWidth, CONFIG.tileWidth);
+                    drawPixelSprite(ctx, img);
                 }
             }
         } else {
             preloadImage(spritePath).then((loadedImg) => {
                 if (loadedImg && ctx) {
                     state.drawnRemoteSrc.set(playerId, spritePath);
-                    ctx.clearRect(0, 0, CONFIG.tileWidth, CONFIG.tileWidth);
-                    ctx.drawImage(loadedImg, 0, 0, CONFIG.tileWidth, CONFIG.tileWidth);
+                    drawPixelSprite(ctx, loadedImg);
                 }
             });
         }

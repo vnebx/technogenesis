@@ -1,5 +1,10 @@
+export const SPRITE_SIZE = 16;
+export const TILE_SCALE = 4;
+
 export const CONFIG = {
-    tileWidth: 60,
+    spriteSize: SPRITE_SIZE,
+    tileScale: TILE_SCALE,
+    tileWidth: SPRITE_SIZE * TILE_SCALE,
     lakeWidth: 4,
     lakeHeight: 3,
     regionSize: 32,
@@ -9,7 +14,7 @@ export const CONFIG = {
     MAX_STACK: 64,
     INVENTORY_TEXT_SCALE: 0.9,
     ITEM_IMAGE_PATH: "assets/ui/items/",
-    moveSpeed: 120,
+    moveSpeed: 128,
     animInterval: 180,
     useDuration: 500,
     useCooldown: 500,
@@ -19,7 +24,7 @@ export const CONFIG = {
     GROUND_ITEM_SCALE: 2,
     GROUND_ITEM_BASE_SIZE: 16,
     GROUND_ITEM_BOB_AMPLITUDE: 4,
-    DROP_DISTANCE: Math.round(60 * 0.8),
+    DROP_DISTANCE: Math.round(SPRITE_SIZE * TILE_SCALE * 0.8),
     UPDATE_SEND_INTERVAL: 80,
     JOYSTICK_DEADZONE: 14,
     defaultCharacter: "assets/characters/basicrobot",
@@ -63,8 +68,6 @@ export const state = {
     scaleY: 1,
     cameraX: 0,
     cameraY: 0,
-    cameraRenderX: 0,
-    cameraRenderY: 0,
     worldEl: null,
     playerEl: null,
     playerCanvas: null,

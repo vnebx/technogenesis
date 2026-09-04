@@ -10,6 +10,8 @@ import {
     spriteBackground,
     nextAnimFrame,
     preloadImage,
+    setupPixelSpriteCanvas,
+    drawPixelSprite,
 } from "./sprites.js";
 import { updateCamera, screenCenterPlayerLeft, screenCenterPlayerTop } from "./tiles.js";
 import { createInventoryUI, toggleInventory } from "./inventory.js";
@@ -78,17 +80,11 @@ function createPlayer() {
     state.playerEl.style.pointerEvents = "none";
 
     const canvas = document.createElement("canvas");
-    canvas.width = CONFIG.tileWidth;
-    canvas.height = CONFIG.tileWidth;
-    canvas.style.width = "100%";
-    canvas.style.height = "100%";
-    canvas.style.display = "block";
-    canvas.style.imageRendering = "pixelated";
     canvas.style.pointerEvents = "none";
     state.playerEl.appendChild(canvas);
     state.playerCanvas = canvas;
     state.playerCtx = canvas.getContext("2d");
-    state.playerCtx.imageSmoothingEnabled = false;
+    setupPixelSpriteCanvas(canvas, state.playerCtx);
 
     state.viewportEl.appendChild(state.playerEl);
 }
@@ -118,16 +114,14 @@ function updatePlayerSprite() {
         if (state.drawnPlayerSrc !== src) {
             state.drawnPlayerSrc = src;
             if (state.playerCtx) {
-                state.playerCtx.clearRect(0, 0, CONFIG.tileWidth, CONFIG.tileWidth);
-                state.playerCtx.drawImage(img, 0, 0, CONFIG.tileWidth, CONFIG.tileWidth);
+                drawPixelSprite(state.playerCtx, img);
             }
         }
     } else {
         preloadImage(src).then((loadedImg) => {
             if (loadedImg && state.playerCtx) {
                 state.drawnPlayerSrc = src;
-                state.playerCtx.clearRect(0, 0, CONFIG.tileWidth, CONFIG.tileWidth);
-                state.playerCtx.drawImage(loadedImg, 0, 0, CONFIG.tileWidth, CONFIG.tileWidth);
+                drawPixelSprite(state.playerCtx, loadedImg);
             }
         });
     }

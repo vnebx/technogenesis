@@ -1,105 +1,109 @@
 import { CONFIG, state } from "./state.js";
-// Every character has a set of animations for each direction (up, down, left, right) and idle states.
-// For diagonals vertical animations are used
-export function imageExists(src) {
-    return new Promise((resolve) => {
-        const img = new Image();
-        img.onload = () => resolve(true);
-        img.onerror = () => resolve(false);
-        img.src = src;
-    });
-}
-// Animations available:
-// idle, up, down, left, right, use
-// when creating png's for each animation put the animation name, and a number starting from 0
-// for example: idle0.png, idle1.png, idle2.png, up0.png, up1.png, up2.png, etc
-export async function discoverFrames(character) {
-    const frames = state.characterFrames[character] || (state.characterFrames[character] = {});
-    // For each animation direction, probe images named `name0.png, name1.png, ...`
-    // and count how many exist by testing until one fails to load.
-    for (const name of CONFIG.directions) {
-        let count = 0;
-        while (await imageExists(`${character}/${name}${count}.png`)) {
-            count++;
-        }
-        frames[name] = count;
-    }
-}
+
+// Static manifest of all character animations and frame counts
+export const CHARACTER_MANIFEST = {
+    "assets/characters/basicrobot": {
+        backward: 2,
+        backwarduse: 1,
+        forward: 2,
+        forwarduse: 1,
+        idlebackward: 1,
+        idleforward: 1,
+        idleleft: 1,
+        idleright: 1,
+        left: 2,
+        leftuse: 1,
+        right: 2,
+        rightuse: 1,
+    },
+    "assets/characters/basicrobot2": {
+        backward: 2,
+        backwarduse: 1,
+        forward: 2,
+        forwarduse: 1,
+        idlebackward: 1,
+        idleforward: 1,
+        idleleft: 1,
+        idleright: 1,
+        left: 2,
+        leftuse: 1,
+        right: 2,
+        rightuse: 1,
+    },
+};
 
 export function getCharacterFrames(character) {
-    return state.characterFrames[character] || state.characterFrames[state.characterPath] || {};
+    return CHARACTER_MANIFEST[character] || CHARACTER_MANIFEST[state.characterPath] || CHARACTER_MANIFEST[CONFIG.defaultCharacter] || {};
+}
+
+export function discoverFrames(character) {
+    state.characterFrames[character] = getCharacterFrames(character);
+    return Promise.resolve();
+}
+
+export function preloadImage(src) {
+    if (state.imageCache[src]) {
+        const cached = state.imageCache[src];
+        if (cached.complete && cached.naturalWidth > 0) return Promise.resolve(cached);
+    }
+    return new Promise((resolve) => {
+        const img = state.imageCache[src] || new Image();
+        state.imageCache[src] = img;
+        img.onload = () => {
+            if (img.decode) {
+                img.decode().catch(() => {}).then(() => resolve(img));
+            } else {
+                resolve(img);
+            }
+        };
+        img.onerror = () => {
+            resolve(img);
+        };
+        if (!img.src || !img.src.endsWith(src)) {
+            img.src = src;
+        }
+    });
 }
 
 export async function preloadSprites(character) {
-    if (state.preloadedCharacters.has(character)) return;
     const frames = getCharacterFrames(character);
     const jobs = [];
-    for (const name of CONFIG.directions) {
-        for (let i = 0; i < (frames[name] || 0); i++) {
-            const src = `${character}/${name}${i}.png`;
-            if (state.imageCache[src]) {
-                // Already cached from a previous load: convert it if not yet converted.
-                convertToDataUrl(src);
-                continue;
-            }
-            // Load via the image's onload event (NOT img.decode()). decode() can
-            // resolve before the loader has set `complete`/`naturalWidth`, so frames
-            // would be skipped and later fall back to a raw network path, which made
-            // the player sprite flicker for a few seconds while it re-fetched them.
-            jobs.push(loadIntoCache(src).then(() => convertToDataUrl(src)));
+    for (const [animName, count] of Object.entries(frames)) {
+        for (let i = 0; i < count; i++) {
+            jobs.push(preloadImage(`${character}/${animName}${i}.png`));
         }
     }
     await Promise.all(jobs);
     state.preloadedCharacters.add(character);
 }
 
-// Loads an image into the shared cache and resolves only after its pixels are
-// fully decoded (guaranteeing complete/naturalWidth are valid for canvas drawImage).
-function loadIntoCache(src) {
-    return new Promise((resolve) => {
-        const img = new Image();
-        img.onload = () => resolve();
-        img.onerror = () => resolve();
-        state.imageCache[src] = img;
-        img.src = src;
-    });
-}
-
-// Converts a cached, fully-loaded sprite into a data URL and stores it. No-op if
-// the sprite is already converted or the image is not yet usable.
-function convertToDataUrl(src) {
-    const img = state.imageCache[src];
-    if (!img || !img.complete || img.naturalWidth <= 0) return;
-    if (state.spriteDataUrls.has(src)) return;
-    try {
-        const canvas = document.createElement("canvas");
-        canvas.width = img.naturalWidth;
-        canvas.height = img.naturalHeight;
-        canvas.getContext("2d").drawImage(img, 0, 0);
-        state.spriteDataUrls.set(src, canvas.toDataURL("image/png"));
-    } catch (e) {
-        /* keep raw path fallback */
+export async function preloadAllAssets() {
+    const jobs = [];
+    for (const [character, anims] of Object.entries(CHARACTER_MANIFEST)) {
+        for (const [animName, count] of Object.entries(anims)) {
+            for (let i = 0; i < count; i++) {
+                jobs.push(preloadImage(`${character}/${animName}${i}.png`));
+            }
+        }
+        state.preloadedCharacters.add(character);
+        state.characterFrames[character] = anims;
     }
+    for (const type of CONFIG.TILE_TYPES) {
+        jobs.push(preloadImage(`assets/tiles/${type}.png`));
+    }
+    jobs.push(preloadImage("assets/ui/inventory/slot.png"));
+    jobs.push(preloadImage("assets/ui/items/oak_log_chunk.png"));
+    await Promise.all(jobs);
 }
 
-// Returns the data-URL version of a sprite for use as a CSS background.
-// Falls back to the raw path (or lazy-converts on demand) if not yet converted.
 export function spriteBackground(src) {
-    if (state.spriteDataUrls.has(src)) return state.spriteDataUrls.get(src);
-    const img = state.imageCache[src];
-    if (img && img.complete && img.naturalWidth > 0) {
-        convertToDataUrl(src);
-        const url = state.spriteDataUrls.get(src);
-        if (url) return url;
-    }
     return src;
 }
 
-export async function setCharacterPath(newPath) {
+export function setCharacterPath(newPath) {
     if (!newPath || newPath === state.characterPath) return;
     state.characterPath = newPath;
-    await discoverFrames(state.characterPath);
-    await preloadSprites(state.characterPath);
+    discoverFrames(state.characterPath);
     state.animFrame = 0;
     state.animTimer = 0;
 }
@@ -120,39 +124,31 @@ export function getCurrentSpriteName() {
     return state.direction === "idle" ? `idle${state.lastDirection}` : state.direction;
 }
 
-export async function ensureRemoteCharacter(character) {
-    if (!character || state.preloadedCharacters.has(character)) return;
-    await discoverFrames(character);
-    await preloadSprites(character);
+export function ensureRemoteCharacter(character) {
+    if (!character) return;
+    discoverFrames(character);
+    if (!state.preloadedCharacters.has(character)) {
+        preloadSprites(character);
+    }
 }
 
 export function preloadTiles() {
     for (const type of CONFIG.TILE_TYPES) {
-        const src = `assets/tiles/${type}.png`;
-        if (!state.imageCache[src]) {
-            const img = new Image();
-            img.src = src;
-            state.imageCache[src] = img;
-        }
+        preloadImage(`assets/tiles/${type}.png`);
     }
 }
 
 export function loadImage(src) {
-    return new Promise((resolve) => {
-        const img = new Image();
-        img.onload = () => resolve(img);
-        img.onerror = () => resolve(null);
-        img.src = src;
-    });
+    return preloadImage(src);
 }
-// This is sort of a workaround for black backround lines appearing between tiles on some browsers
-// Just put a seamless gap color for the specific tile used and fine
+
+// Workaround for background gaps between tiles on some browsers
 export async function loadTileColors() {
     const canvas = document.createElement("canvas");
     const ctx = canvas.getContext("2d");
     for (const type of CONFIG.TILE_TYPES) {
         const img = await loadImage(`assets/tiles/${type}.png`);
-        if (!img) continue;
+        if (!img || !img.naturalWidth) continue;
         canvas.width = img.naturalWidth;
         canvas.height = img.naturalHeight;
         ctx.clearRect(0, 0, canvas.width, canvas.height);
@@ -161,11 +157,8 @@ export async function loadTileColors() {
         try {
             data = ctx.getImageData(0, 0, canvas.width, canvas.height).data;
         } catch (e) {
-            // Reading pixel data fails cross-origin (tiled canvases); skip averaging for this tile
             continue;
         }
-        // Average the RGB of all non-transparent pixels to derive a representative
-        // background color for the tile (used to fill gaps between tile edges).
         let r = 0, g = 0, b = 0, count = 0;
         for (let i = 0; i < data.length; i += 4) {
             if (data[i + 3] < 50) continue;

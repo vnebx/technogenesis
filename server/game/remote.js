@@ -1,21 +1,36 @@
 import { CONFIG, state } from "./state.js";
-import { getCharacterFrames, ensureRemoteCharacter, spriteBackground } from "./sprites.js";
+import { getCharacterFrames, ensureRemoteCharacter, preloadImage } from "./sprites.js";
+import { screenXFromWorld, screenYFromWorld } from "./tiles.js";
+
+function isIdleAnimation(animation) {
+    return !animation || animation === "idle" || animation.startsWith("idle");
+}
 // Players animation and movement handling for remote players, may need a change if new player actions are introduced
 export function createRemotePlayer(playerId) {
     const player = document.createElement("div");
+    player.className = "remote-player";
     player.style.width = `${CONFIG.tileWidth}px`;
     player.style.height = `${CONFIG.tileWidth}px`;
-    player.style.position = "fixed";
+    player.style.position = "absolute";
     player.style.top = "0";
     player.style.left = "0";
-    player.style.backgroundSize = "contain";
-    player.style.backgroundPosition = "center";
-    player.style.backgroundRepeat = "no-repeat";
     player.style.zIndex = "10";
     player.style.pointerEvents = "none";
-    // Own compositor layer so sprite-background swaps don't repaint the viewport.
-    player.style.transform = "translateZ(0)";
-    player.style.willChange = "transform";
+
+    const canvas = document.createElement("canvas");
+    canvas.width = CONFIG.tileWidth;
+    canvas.height = CONFIG.tileWidth;
+    canvas.style.width = "100%";
+    canvas.style.height = "100%";
+    canvas.style.display = "block";
+    canvas.style.imageRendering = "pixelated";
+    canvas.style.pointerEvents = "none";
+    player.appendChild(canvas);
+
+    const ctx = canvas.getContext("2d");
+    ctx.imageSmoothingEnabled = false;
+    state.remotePlayerCtxs.set(playerId, ctx);
+
     state.viewportEl.appendChild(player);
     state.remotePlayers.set(playerId, player);
     return player;
@@ -61,8 +76,11 @@ export function updateRemotePlayers(players) {
                 target.y = s.position.y;
             }
             if (target.animation !== animation) {
+                const wasIdle = isIdleAnimation(target.animation);
                 target.animation = animation;
-                state.remoteAnim.set(playerId, { frame: 0, timer: 0 });
+                if (wasIdle !== isIdleAnimation(animation)) {
+                    state.remoteAnim.set(playerId, { frame: 0, timer: 0 });
+                }
             }
         } else {
             state.remoteTargets.set(playerId, {
@@ -83,6 +101,8 @@ export function updateRemotePlayers(players) {
             state.remotePlayers.delete(playerId);
             state.remoteTargets.delete(playerId);
             state.remoteAnim.delete(playerId);
+            state.remotePlayerCtxs.delete(playerId);
+            state.drawnRemoteSrc.delete(playerId);
         }
     }
 }
@@ -95,15 +115,12 @@ export function updateRemotePlayersRender(dt) {
         const dx = target.tx - target.x;
         const dy = target.ty - target.y;
         const dist = Math.hypot(dx, dy);
-        if (dist > 0.5) {
+        if (dist > 0.001) {
             // Move toward the target each frame; speed up (4x) when far behind to catch up
             const catchUp = dist > CONFIG.moveSpeed ? CONFIG.moveSpeed * 4 : CONFIG.moveSpeed;
             const step = Math.min(dist, catchUp * dt);
             target.x += (dx / dist) * step;
             target.y += (dy / dist) * step;
-        } else {
-            target.x = target.tx;
-            target.y = target.ty;
         }
 
         if (target.animation && target.animation !== "idle" && !target.animation.startsWith("idle")) {
@@ -123,13 +140,31 @@ export function updateRemotePlayersRender(dt) {
         const totalFrames = getCharacterFrames(target.character)[target.animation] || 1;
         const frame = anim.frame % (totalFrames || 1);
         const spritePath = `${target.character}/${target.animation}${frame}.png`;
-        const left = Math.round((target.x - Math.round(state.cameraX)) * state.scaleX) / state.scaleX;
-        const top = Math.round((target.y - Math.round(state.cameraY)) * state.scaleY) / state.scaleY;
+        const left = screenXFromWorld(target.x);
+        const top = screenYFromWorld(target.y);
 
-        if (player.dataset.src !== spritePath) {
-            player.dataset.src = spritePath;
-            player.style.backgroundImage = `url(${spriteBackground(spritePath)})`;
+        const img = state.imageCache[spritePath];
+        const ctx = state.remotePlayerCtxs.get(playerId);
+        const drawn = state.drawnRemoteSrc.get(playerId);
+
+        if (img && img.complete && img.naturalWidth > 0) {
+            if (drawn !== spritePath) {
+                state.drawnRemoteSrc.set(playerId, spritePath);
+                if (ctx) {
+                    ctx.clearRect(0, 0, CONFIG.tileWidth, CONFIG.tileWidth);
+                    ctx.drawImage(img, 0, 0, CONFIG.tileWidth, CONFIG.tileWidth);
+                }
+            }
+        } else {
+            preloadImage(spritePath).then((loadedImg) => {
+                if (loadedImg && ctx) {
+                    state.drawnRemoteSrc.set(playerId, spritePath);
+                    ctx.clearRect(0, 0, CONFIG.tileWidth, CONFIG.tileWidth);
+                    ctx.drawImage(loadedImg, 0, 0, CONFIG.tileWidth, CONFIG.tileWidth);
+                }
+            });
         }
+
         if (player.dataset.left !== String(left)) {
             player.dataset.left = String(left);
             player.style.left = `${left}px`;

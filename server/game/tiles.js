@@ -82,12 +82,37 @@ export function updateVisibleTiles() {
     }
 }
 
+export function getCameraFraction() {
+    return {
+        x: state.cameraX - state.cameraRenderX,
+        y: state.cameraY - state.cameraRenderY,
+    };
+}
+
+export function screenXFromWorld(worldX) {
+    return Math.round((worldX - state.cameraRenderX) * state.scaleX) / state.scaleX;
+}
+
+export function screenYFromWorld(worldY) {
+    return Math.round((worldY - state.cameraRenderY) * state.scaleY) / state.scaleY;
+}
+
+export function screenCenterPlayerLeft() {
+    const frac = getCameraFraction();
+    return Math.round((state.GAME_W / 2 - CONFIG.tileWidth / 2 - frac.x) * state.scaleX) / state.scaleX;
+}
+
+export function screenCenterPlayerTop() {
+    const frac = getCameraFraction();
+    return Math.round((state.GAME_H / 2 - CONFIG.tileWidth / 2 - frac.y) * state.scaleY) / state.scaleY;
+}
+
 export function updateCamera() {
     state.cameraX = state.playerWorldX + CONFIG.tileWidth / 2 - state.GAME_W / 2;
     state.cameraY = state.playerWorldY + CONFIG.tileWidth / 2 - state.GAME_H / 2;
-    const worldX = Math.round(state.cameraX);
-    const worldY = Math.round(state.cameraY);
-    state.worldEl.style.transform = `translate(${-worldX}px, ${-worldY}px)`;
+    state.cameraRenderX = Math.round(state.cameraX);
+    state.cameraRenderY = Math.round(state.cameraY);
+    state.worldEl.style.transform = `translate(${-state.cameraRenderX}px, ${-state.cameraRenderY}px)`;
     updateVisibleTiles();
 }
 

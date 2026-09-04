@@ -4,12 +4,14 @@ import {
     discoverFrames,
     preloadSprites,
     preloadTiles,
+    preloadAllAssets,
     loadTileColors,
     getCurrentSpriteName,
     spriteBackground,
     nextAnimFrame,
+    preloadImage,
 } from "./sprites.js";
-import { updateCamera } from "./tiles.js";
+import { updateCamera, screenCenterPlayerLeft, screenCenterPlayerTop } from "./tiles.js";
 import { createInventoryUI, toggleInventory } from "./inventory.js";
 import { checkGroundPickup, updateGroundItemAnimation, dropCursorItem } from "./grounditems.js";
 import { updateRemotePlayersRender } from "./remote.js";
@@ -66,22 +68,29 @@ applySettings(settings);
 
 function createPlayer() {
     state.playerEl = document.createElement("div");
+    state.playerEl.id = "player";
     state.playerEl.style.width = `${CONFIG.tileWidth}px`;
     state.playerEl.style.height = `${CONFIG.tileWidth}px`;
-    state.playerEl.style.position = "fixed";
+    state.playerEl.style.position = "absolute";
     state.playerEl.style.top = "0";
     state.playerEl.style.left = "0";
-    state.playerEl.style.backgroundSize = "contain";
-    state.playerEl.style.backgroundPosition = "center";
-    state.playerEl.style.backgroundRepeat = "no-repeat";
     state.playerEl.style.zIndex = "10";
-    // Promote the player to its own GPU-composited layer so swapping its
-    // background sprite each animation frame composites independently instead of
-    // repainting the whole viewport (which caused flicker while moving).
-    state.playerEl.style.transform = "translateZ(0)";
-    state.playerEl.style.willChange = "transform";
+    state.playerEl.style.pointerEvents = "none";
+
+    const canvas = document.createElement("canvas");
+    canvas.width = CONFIG.tileWidth;
+    canvas.height = CONFIG.tileWidth;
+    canvas.style.width = "100%";
+    canvas.style.height = "100%";
+    canvas.style.display = "block";
+    canvas.style.imageRendering = "pixelated";
+    canvas.style.pointerEvents = "none";
+    state.playerEl.appendChild(canvas);
+    state.playerCanvas = canvas;
+    state.playerCtx = canvas.getContext("2d");
+    state.playerCtx.imageSmoothingEnabled = false;
+
     state.viewportEl.appendChild(state.playerEl);
-    updatePlayerSprite();
 }
 
 function createHud() {
@@ -103,12 +112,28 @@ function updateCoords() {
 function updatePlayerSprite() {
     const spriteName = getCurrentSpriteName();
     const src = `${state.characterPath}/${spriteName}${state.animFrame}.png`;
-    if (state.playerEl.dataset.src !== src) {
-        state.playerEl.dataset.src = src;
-        state.playerEl.style.backgroundImage = `url(${spriteBackground(src)})`;
+    const img = state.imageCache[src];
+
+    if (img && img.complete && img.naturalWidth > 0) {
+        if (state.drawnPlayerSrc !== src) {
+            state.drawnPlayerSrc = src;
+            if (state.playerCtx) {
+                state.playerCtx.clearRect(0, 0, CONFIG.tileWidth, CONFIG.tileWidth);
+                state.playerCtx.drawImage(img, 0, 0, CONFIG.tileWidth, CONFIG.tileWidth);
+            }
+        }
+    } else {
+        preloadImage(src).then((loadedImg) => {
+            if (loadedImg && state.playerCtx) {
+                state.drawnPlayerSrc = src;
+                state.playerCtx.clearRect(0, 0, CONFIG.tileWidth, CONFIG.tileWidth);
+                state.playerCtx.drawImage(loadedImg, 0, 0, CONFIG.tileWidth, CONFIG.tileWidth);
+            }
+        });
     }
-    const left = Math.round(state.GAME_W / 2 - CONFIG.tileWidth / 2);
-    const top = Math.round(state.GAME_H / 2 - CONFIG.tileWidth / 2);
+
+    const left = screenCenterPlayerLeft();
+    const top = screenCenterPlayerTop();
     if (state.playerEl.dataset.left !== String(left)) {
         state.playerEl.dataset.left = String(left);
         state.playerEl.style.left = `${left}px`;
@@ -169,17 +194,19 @@ function gameLoop(time) {
     const dt = Math.min(rawDt, 0.05);
     state.lastTime = time;
 
-    if (!document.hasFocus()) clearMovementKeys();
-
     applyCanvasTransform();
 
     const movement = getMovementState();
     const newDirection = movement.direction;
     if (newDirection !== state.direction) {
         if (state.direction !== "idle") state.lastDirection = state.direction;
+        const wasMoving = state.direction !== "idle";
+        const isMoving = newDirection !== "idle";
         state.direction = newDirection;
-        state.animFrame = 0;
-        state.animTimer = 0;
+        if (wasMoving !== isMoving) {
+            state.animFrame = 0;
+            state.animTimer = 0;
+        }
     }
 
     const currentAnim = getCurrentSpriteName();
@@ -215,8 +242,8 @@ function gameLoop(time) {
 
     checkGroundPickup();
     updateGroundItemAnimation();
-    updatePlayerSprite();
     updateCamera();
+    updatePlayerSprite();
     updateRemotePlayersRender(dt);
     updateCoords();
     sendPlayerUpdate();
@@ -275,8 +302,8 @@ window.addEventListener("gesturechange", (e) => e.preventDefault());
 
 window.addEventListener("resize", () => {
     applyCanvasTransform();
-    if (state.playerEl) updatePlayerSprite();
     updateCamera();
+    if (state.playerEl) updatePlayerSprite();
 });
 
 function startGame() {
@@ -324,15 +351,14 @@ async function init() {
 
     createHud();
     createInventoryUI(settings);
+    await preloadAllAssets();
     await fetchLocalPlayerData();
     await connectToServer();
-    await discoverFrames(state.characterPath);
-    await preloadSprites(state.characterPath);
-    preloadTiles();
     await loadTileColors();
     createPlayer();
     applyCanvasTransform();
     updateCamera();
+    updatePlayerSprite();
     requestAnimationFrame(gameLoop);
 }
 

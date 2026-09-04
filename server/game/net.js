@@ -14,7 +14,10 @@ export function getPlayerSnapshot() {
     const spriteName = getCurrentSpriteName();
     return {
         character: state.characterPath,
-        position: { x: state.playerWorldX, y: state.playerWorldY },
+        position: {
+            x: Math.round(state.playerWorldX * 10) / 10,
+            y: Math.round(state.playerWorldY * 10) / 10,
+        },
         inventory: state.playerInventory.map((slot) => (slot ? { id: slot.id, count: slot.count } : null)),
         animation: spriteName,
     };
@@ -51,8 +54,13 @@ export function sendPickupGroundItem(id) {
 }
 
 async function handleServerMessage(event) {
-    const message = JSON.parse(event.data);
-    const serverId = getServerId();
+    let message;
+    try {
+        message = JSON.parse(event.data);
+    } catch (e) {
+        return;
+    }
+    if (!message) return;
 
     if (message.type === "welcome") {
         state.localPlayerId = message.player_id;
@@ -63,11 +71,11 @@ async function handleServerMessage(event) {
             const localData = message.players[state.localPlayerId];
             if (localData) {
                 if (localData.character) {
-                    await setCharacterPath(localData.character);
+                    setCharacterPath(localData.character);
                 }
                 if (localData.position) {
-                    state.playerWorldX = localData.position.x;
-                    state.playerWorldY = localData.position.y;
+                    state.playerWorldX = Number(localData.position.x) || 0;
+                    state.playerWorldY = Number(localData.position.y) || 0;
                 }
             }
             updateRemotePlayers(message.players);
@@ -83,7 +91,7 @@ async function handleServerMessage(event) {
         if (message.players) {
             const localData = message.players[state.localPlayerId];
             if (localData && localData.character) {
-                await setCharacterPath(localData.character);
+                setCharacterPath(localData.character);
             }
             updateRemotePlayers(message.players);
         }

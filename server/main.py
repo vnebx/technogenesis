@@ -829,7 +829,10 @@ async def game(request):
     if not os.path.isfile(path):
         return web.HTTPNotFound()
     response = web.FileResponse(path)
-    response.headers["Cache-Control"] = "no-store, max-age=0"
+    if path.endswith(".html") or path.endswith(".js") or path.endswith(".css"):
+        response.headers["Cache-Control"] = "no-cache, must-revalidate"
+    else:
+        response.headers["Cache-Control"] = "public, max-age=86400"
     return response
 
 

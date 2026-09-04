@@ -20,15 +20,17 @@ export function hashString(str) {
 export function renderGroundItems() {
     const seen = new Set();
     const size = groundItemPixelSize();
+    const sizeStr = `${size}px`;
     for (const item of state.groundItems) {
         if (state.pendingPickups.has(item.id)) {
             seen.add(item.id);
             const el = state.groundItemEls.get(item.id);
-            if (el) el.style.display = "none";
+            if (el && el.style.display !== "none") el.style.display = "none";
             continue;
         }
         seen.add(item.id);
         let el = state.groundItemEls.get(item.id);
+        const texturePath = getItemTexturePath(item.item);
         if (!el) {
             el = document.createElement("img");
             el.className = "ground-item";
@@ -36,13 +38,21 @@ export function renderGroundItems() {
             el.style.position = "absolute";
             el.style.zIndex = "1";
             el.style.pointerEvents = "none";
+            el.dataset.item = item.item;
+            el.src = texturePath;
+            el.style.width = sizeStr;
+            el.style.height = sizeStr;
             state.worldEl.appendChild(el);
             state.groundItemEls.set(item.id, el);
+        } else {
+            if (el.dataset.item !== item.item) {
+                el.dataset.item = item.item;
+                el.src = texturePath;
+            }
+            if (el.style.display !== "block") {
+                el.style.display = "block";
+            }
         }
-        el.style.display = "block";
-        el.src = getItemTexturePath(item.item);
-        el.style.width = `${size}px`;
-        el.style.height = `${size}px`;
     }
     for (const [id, el] of state.groundItemEls) {
         if (!seen.has(id)) {

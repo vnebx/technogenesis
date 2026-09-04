@@ -18,9 +18,6 @@ function requestMobileFullscreen() {
 }
 
 export function initMobileViewport() {
-    document.documentElement.style.height = "100%";
-    document.body.style.height = "100%";
-    document.body.style.overflow = "hidden";
     document.body.style.touchAction = "none";
 
     const enterFullscreen = () => requestMobileFullscreen();

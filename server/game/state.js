@@ -70,10 +70,9 @@ export const state = {
     cameraY: 0,
     worldEl: null,
     playerEl: null,
-    playerCanvas: null,
-    playerCtx: null,
+    playerImgEl: null,
     drawnPlayerSrc: null,
-    remotePlayerCtxs: new Map(),
+    remotePlayerImgs: new Map(),
     drawnRemoteSrc: new Map(),
     coordEl: null,
 
@@ -85,6 +84,7 @@ export const state = {
     initStarted: false,
     gameLoopStarted: false,
     loadStatusEl: null,
+    onGameConnected: null,
 
     joystickEl: null,
     joystickKnobEl: null,

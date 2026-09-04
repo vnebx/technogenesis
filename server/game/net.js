@@ -81,6 +81,7 @@ async function handleServerMessage(event) {
             updateRemotePlayers(message.players);
         }
         if (state.seed.length) updateCamera();
+        if (typeof state.onGameConnected === "function") state.onGameConnected();
         return;
     }
 
@@ -100,7 +101,7 @@ async function handleServerMessage(event) {
 
 export function fetchLocalPlayerData() {
     const serverId = getServerId();
-    return fetch(`/api/player-data?server=${encodeURIComponent(serverId)}`)
+    return fetch(`/api/player-data?server=${encodeURIComponent(serverId)}`, { credentials: "same-origin" })
         .then((response) => response.json())
         .then((data) => {
             const localData = data.data || {};
@@ -124,9 +125,9 @@ export function fetchLocalPlayerData() {
         .catch(() => {});
 }
 
-export function connectToServer(timeoutMs = 15000) {
+export function connectToServer(timeoutMs = 10000) {
     const serverId = getServerId();
-    return fetch(`/api/ws-token?server=${encodeURIComponent(serverId)}`)
+    return fetch(`/api/ws-token?server=${encodeURIComponent(serverId)}`, { credentials: "same-origin" })
         .then((response) => {
             if (!response.ok) throw new Error(`Token request failed (${response.status})`);
             return response.json();
@@ -169,7 +170,10 @@ export function connectToServer(timeoutMs = 15000) {
                 state.ws.onclose = (event) => {
                     state.ws = null;
                     if (!settled) {
-                        finish(reject, new Error(`WebSocket closed (${event.code})`));
+                        const msg = event.code === 4004
+                            ? "Already connected on another device"
+                            : `WebSocket closed (${event.code})`;
+                        finish(reject, new Error(msg));
                     }
                 };
             });

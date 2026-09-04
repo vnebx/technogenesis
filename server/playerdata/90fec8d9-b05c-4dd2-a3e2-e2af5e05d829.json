@@ -79,10 +79,10 @@
     },
     "bnvexu": {
       "position": {
-        "x": 118.62073159852845,
-        "y": -679.2705580330875
+        "x": 232.9,
+        "y": -881.4
       },
-      "animation": "left",
+      "animation": "forward",
       "character": "assets/characters/basicrobot",
       "inventory": [
         null,
@@ -113,10 +113,78 @@
     },
     "anwzpw": {
       "position": {
-        "x": -3.0216969109493297,
-        "y": -66.675290039756
+        "x": 69.6,
+        "y": -213.0
+      },
+      "animation": "idleforward",
+      "character": "assets/characters/basicrobot",
+      "inventory": [
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null
+      ]
+    },
+    "ryv5cz": {
+      "position": {
+        "x": 17.2,
+        "y": -101.3
       },
       "animation": "forward",
+      "character": "assets/characters/basicrobot",
+      "inventory": [
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null
+      ]
+    },
+    "57ah4a": {
+      "position": {
+        "x": 5.4,
+        "y": -217.2
+      },
+      "animation": "right",
       "character": "assets/characters/basicrobot",
       "inventory": [
         null,

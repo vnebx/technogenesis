@@ -54,24 +54,30 @@ export function discoverFrames(character) {
     return Promise.resolve();
 }
 
-export function preloadImage(src) {
+export function preloadImage(src, timeoutMs = 12000) {
     if (state.imageCache[src]) {
         const cached = state.imageCache[src];
         if (cached.complete && cached.naturalWidth > 0) return Promise.resolve(cached);
     }
     return new Promise((resolve) => {
-        const img = state.imageCache[src] || new Image();
-        state.imageCache[src] = img;
-        img.onload = () => {
-            if (img.decode) {
-                img.decode().catch(() => {}).then(() => resolve(img));
-            } else {
-                resolve(img);
-            }
-        };
-        img.onerror = () => {
+        let settled = false;
+        const finish = (img) => {
+            if (settled) return;
+            settled = true;
+            clearTimeout(timer);
             resolve(img);
         };
+
+        const timer = setTimeout(() => finish(state.imageCache[src]), timeoutMs);
+
+        const img = state.imageCache[src] || new Image();
+        state.imageCache[src] = img;
+        img.onload = () => finish(img);
+        img.onerror = () => finish(img);
+        if (img.complete) {
+            finish(img);
+            return;
+        }
         if (!img.src || !img.src.endsWith(src)) {
             img.src = src;
         }
@@ -106,7 +112,7 @@ export async function preloadAllAssets() {
     }
     jobs.push(preloadImage("assets/ui/inventory/slot.png"));
     jobs.push(preloadImage("assets/ui/items/oak_log_chunk.png"));
-    await Promise.all(jobs);
+    await Promise.allSettled(jobs);
 }
 
 export function spriteBackground(src) {

@@ -10,8 +10,6 @@ import {
     spriteBackground,
     nextAnimFrame,
     preloadImage,
-    setupPixelSpriteCanvas,
-    drawPixelSprite,
 } from "./sprites.js";
 import { updateCamera, screenCenterPlayerLeft, screenCenterPlayerTop } from "./tiles.js";
 import { createInventoryUI, toggleInventory } from "./inventory.js";
@@ -44,12 +42,14 @@ function createPlayer() {
     state.playerEl.style.zIndex = "10";
     state.playerEl.style.pointerEvents = "none";
 
-    const canvas = document.createElement("canvas");
-    canvas.style.pointerEvents = "none";
-    state.playerEl.appendChild(canvas);
-    state.playerCanvas = canvas;
-    state.playerCtx = canvas.getContext("2d");
-    setupPixelSpriteCanvas(canvas, state.playerCtx);
+    const img = document.createElement("img");
+    img.style.display = "block";
+    img.style.width = `${CONFIG.tileWidth}px`;
+    img.style.height = `${CONFIG.tileWidth}px`;
+    img.style.imageRendering = "pixelated";
+    img.style.pointerEvents = "none";
+    state.playerEl.appendChild(img);
+    state.playerImgEl = img;
 
     state.viewportEl.appendChild(state.playerEl);
 }
@@ -73,22 +73,10 @@ function updateCoords() {
 function updatePlayerSprite() {
     const spriteName = getCurrentSpriteName();
     const src = `${state.characterPath}/${spriteName}${state.animFrame}.png`;
-    const img = state.imageCache[src];
 
-    if (img && img.complete && img.naturalWidth > 0) {
-        if (state.drawnPlayerSrc !== src) {
-            state.drawnPlayerSrc = src;
-            if (state.playerCtx) {
-                drawPixelSprite(state.playerCtx, img);
-            }
-        }
-    } else {
-        preloadImage(src).then((loadedImg) => {
-            if (loadedImg && state.playerCtx) {
-                state.drawnPlayerSrc = src;
-                drawPixelSprite(state.playerCtx, loadedImg);
-            }
-        });
+    if (state.playerImgEl && state.drawnPlayerSrc !== src) {
+        state.drawnPlayerSrc = src;
+        state.playerImgEl.src = src;
     }
 
     const left = screenCenterPlayerLeft();
@@ -303,25 +291,52 @@ function beginGameLoop() {
     requestAnimationFrame(gameLoop);
 }
 
-async function connectWithRetry(maxAttempts = 5) {
+function withTimeout(promise, ms, label) {
+    return Promise.race([
+        promise,
+        new Promise((_, reject) => {
+            setTimeout(() => reject(new Error(`${label} timeout`)), ms);
+        }),
+    ]);
+}
+
+async function connectWithRetry(maxAttempts = 8) {
     let lastError = null;
     for (let attempt = 1; attempt <= maxAttempts; attempt++) {
         setLoadStatus(attempt === 1 ? "Connecting..." : `Reconnecting (${attempt}/${maxAttempts})...`);
         try {
-            await connectToServer();
-            hideLoadStatus();
+            await connectToServer(8000);
             return;
         } catch (err) {
             lastError = err;
             if (attempt < maxAttempts) {
-                await new Promise((resolve) => setTimeout(resolve, 1000 * attempt));
+                await new Promise((resolve) => setTimeout(resolve, 800 * attempt));
             }
         }
     }
     setLoadStatus("Connection failed. Tap to retry.");
-    document.addEventListener("touchstart", () => connectWithRetry(), { once: true });
-    document.addEventListener("click", () => connectWithRetry(), { once: true });
+    if (lastError && /another device/i.test(lastError.message)) {
+        setLoadStatus("Already connected elsewhere. Close other tab and tap to retry.");
+    }
+    const retry = () => connectWithRetry();
+    document.addEventListener("touchstart", retry, { once: true });
+    document.addEventListener("click", retry, { once: true });
     console.error("Failed to connect:", lastError);
+}
+
+async function loadGameAssets() {
+    try {
+        await withTimeout(preloadAllAssets(), 12000, "Asset preload");
+        updatePlayerSprite();
+        await withTimeout(fetchLocalPlayerData(), 8000, "Player data");
+        await withTimeout(loadTileColors(), 8000, "Tile colors");
+        updateCamera();
+        updatePlayerSprite();
+    } catch (err) {
+        console.error("Asset load failed:", err);
+        updatePlayerSprite();
+        updateCamera();
+    }
 }
 
 function startGame() {
@@ -392,19 +407,16 @@ async function init() {
     }
 
     setLoadStatus("Loading...");
-
-    try {
-        await preloadAllAssets();
-        updatePlayerSprite();
-        await fetchLocalPlayerData();
-        await loadTileColors();
-        updateCamera();
-        updatePlayerSprite();
-    } catch (err) {
-        console.error("Asset load failed:", err);
-    }
+    state.onGameConnected = hideLoadStatus;
 
     connectWithRetry();
+    loadGameAssets();
+
+    setTimeout(() => {
+        if (state.loadStatusEl && state.loadStatusEl.style.display !== "none") {
+            hideLoadStatus();
+        }
+    }, 15000);
 }
 
 startGame();

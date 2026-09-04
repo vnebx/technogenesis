@@ -17,6 +17,7 @@ Right now it's not really a working game yet — it's more like a small multipla
 **The world**
 - Procedurally generated, infinite-ish ground made of 16x16 tiles: grass, water, trees. There's a seed generation so every world has the same start.
 - The world generators are in `server/game/mapgen/` (`lake.js` and `tree.js`).
+- Tree density is controlled in `server/game/state.js`: `CONFIG.TREE_SPACING` (distance in tiles between lattice slots, default 5 — smaller is denser) and `CONFIG.TREE_CELL_DENSITY` (chance each slot grows a tree, default 1). Trees are placed on a global lattice so they never overlap and are spread evenly across the whole world.
 - I'm still working on terrain generation and player settings.
 
 **Multiplayer**

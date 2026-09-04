@@ -8,7 +8,17 @@ export const CONFIG = {
     lakeWidth: 4,
     lakeHeight: 3,
     regionSize: 32,
-    treeRegionSize: 16,
+    // TREE QUANTITY CONTROL
+    // Trees grow on a global lattice instead of per-region. The world is divided
+    // into cells of `TREE_SPACING` tiles and each cell holds at most one tree,
+    // so every tree is spread evenly across the whole map and can never overlap
+    // another (its trunk + canopy always stay inside its own cell).
+    //   `TREE_SPACING`  — distance between lattice slots in tiles. Smaller =
+    //                     denser forest. 5 = dense, 8 = open woodland.
+    //   `TREE_CELL_DENSITY` — chance (0..1) that a slot actually grows a tree.
+    //                     1 = every slot, 0.5 = half the slots stay empty.
+    TREE_SPACING: 5,
+    TREE_CELL_DENSITY: 1,
     INVENTORY_COLS: 4,
     INVENTORY_ROWS: 6,
     MAX_STACK: 64,

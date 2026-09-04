@@ -38,12 +38,12 @@ function ensureTile(col, row) {
 
     const baseType = getBaseTileType(col, row, state.seed, CONFIG.regionSize, CONFIG.lakeWidth, CONFIG.lakeHeight);
     const baseTile = createTileElement(col, row, baseType, "0");
-    const treeOrigin = getTreeAt(col, row, state.seed, CONFIG.regionSize, CONFIG.treeRegionSize);
+    const treeOrigin = getTreeAt(col, row, state.seed);
     if (!treeOrigin || state.removedTrees.has(treeKey(treeOrigin))) {
         state.tileElements.set(key, { base: baseTile });
         return;
     }
-    const treeType = getTreeTile(col, row, state.seed, CONFIG.regionSize, CONFIG.treeRegionSize);
+    const treeType = getTreeTile(col, row, state.seed);
     const overlayZ = treeType === "oak_tree_leaves" ? "3" : "1";
     const overlayTile = createTileElement(col, row, treeType, overlayZ);
     state.tileElements.set(key, { base: baseTile, overlay: overlayTile });
@@ -123,7 +123,7 @@ export function refreshRemovedTiles() {
         const [colStr, rowStr] = key.split(",");
         const col = parseInt(colStr, 10);
         const row = parseInt(rowStr, 10);
-        const origin = getTreeAt(col, row, state.seed, CONFIG.regionSize, CONFIG.treeRegionSize);
+        const origin = getTreeAt(col, row, state.seed);
         if (!origin) continue;
         if (state.removedTrees.has(treeKey(origin))) {
             if (entry.overlay) {
@@ -131,7 +131,7 @@ export function refreshRemovedTiles() {
                 entry.overlay = null;
             }
         } else if (!entry.overlay) {
-            const treeType = getTreeTile(col, row, state.seed, CONFIG.regionSize, CONFIG.treeRegionSize);
+            const treeType = getTreeTile(col, row, state.seed);
             const overlayZ = treeType === "oak_tree_leaves" ? "3" : "1";
             entry.overlay = createTileElement(col, row, treeType, overlayZ);
         }
@@ -144,7 +144,7 @@ export function treeAtPlayer() {
     // Search a 3x3 tile area around the player to find the tree being interacted with
     for (let dy = -1; dy <= 1; dy++) {
         for (let dx = -1; dx <= 1; dx++) {
-            const origin = getTreeAt(px + dx, py + dy, state.seed, CONFIG.regionSize, CONFIG.treeRegionSize);
+            const origin = getTreeAt(px + dx, py + dy, state.seed);
             if (origin && !state.removedTrees.has(treeKey(origin))) {
                 return origin;
             }

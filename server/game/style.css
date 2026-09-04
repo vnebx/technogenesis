@@ -41,6 +41,11 @@ body {
     --joy-knob: 58px;
     --btn-use-size: 80px;
     --btn-inv-size: 50px;
+    --ctrl-bg: rgba(0, 0, 0, 0.35);
+    --ctrl-border: rgba(255, 255, 255, 0.45);
+    --ctrl-knob-bg: rgba(255, 255, 255, 0.45);
+    --ctrl-knob-border: rgba(255, 255, 255, 0.85);
+    --ctrl-active: rgba(255, 255, 255, 0.6);
 }
 
 #viewport {
@@ -225,8 +230,8 @@ body {
     position: absolute;
     inset: 0;
     border-radius: 50%;
-    border: 3px solid rgba(255, 255, 255, 0.45);
-    background: rgba(0, 0, 0, 0.35);
+    border: 3px solid var(--ctrl-border);
+    background: var(--ctrl-bg);
 }
 #joystick .joystick-knob {
     position: absolute;
@@ -237,8 +242,8 @@ body {
     margin-left: calc(var(--joy-knob) / -2);
     margin-top: calc(var(--joy-knob) / -2);
     border-radius: 50%;
-    border: 3px solid rgba(255, 255, 255, 0.85);
-    background: rgba(255, 255, 255, 0.45);
+    border: 3px solid var(--ctrl-knob-border);
+    background: var(--ctrl-knob-bg);
     transform: translate(0px, 0px);
     will-change: transform;
     pointer-events: none;
@@ -253,8 +258,8 @@ body {
     width: var(--btn-use-size);
     height: var(--btn-use-size);
     border-radius: 50%;
-    border: 3px solid rgba(255, 255, 255, 0.85);
-    background: rgba(255, 255, 255, 0.45);
+    border: 3px solid var(--ctrl-border);
+    background: var(--ctrl-bg);
     color: #fff;
     font-family: 'Silkscreen', monospace;
     font-size: 0.7rem;
@@ -267,7 +272,7 @@ body {
     letter-spacing: 0.02em;
 }
 #mobile-use-btn:active {
-    background: rgba(255, 255, 255, 0.7);
+    background: var(--ctrl-active);
 }
 
 #mobile-inv-btn {
@@ -277,8 +282,8 @@ body {
     width: var(--btn-inv-size);
     height: var(--btn-inv-size);
     border-radius: 10px;
-    border: 3px solid rgba(255, 255, 255, 0.85);
-    background: rgba(255, 255, 255, 0.45);
+    border: 3px solid var(--ctrl-border);
+    background: var(--ctrl-bg);
     color: #fff;
     font-family: 'Silkscreen', monospace;
     font-size: 0.45rem;
@@ -290,7 +295,7 @@ body {
     -webkit-tap-highlight-color: transparent;
 }
 #mobile-inv-btn:active {
-    background: rgba(255, 255, 255, 0.7);
+    background: var(--ctrl-active);
 }
 
 /* Settings */
@@ -301,8 +306,8 @@ body {
     width: 44px;
     height: 44px;
     border-radius: 8px;
-    border: 3px solid rgba(255, 255, 255, 0.85);
-    background: rgba(255, 255, 255, 0.45);
+    border: 3px solid var(--ctrl-border);
+    background: var(--ctrl-bg);
     color: #fff;
     font-size: 1.2rem;
     line-height: 1;
@@ -315,7 +320,7 @@ body {
     -webkit-tap-highlight-color: transparent;
     text-shadow: 1px 1px 0 #000;
 }
-#mobile-settings-btn:active { background: rgba(255, 255, 255, 0.7); }
+#mobile-settings-btn:active { background: var(--ctrl-active); }
 
 #settings-panel {
     position: fixed;

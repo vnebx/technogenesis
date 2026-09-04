@@ -20,8 +20,11 @@ function requestMobileFullscreen() {
 export function initMobileViewport() {
     document.body.style.touchAction = "none";
 
-    const enterFullscreen = () => requestMobileFullscreen();
-    document.addEventListener("touchstart", enterFullscreen, { once: true, passive: true });
+    document.addEventListener("touchstart", () => requestMobileFullscreen(), { passive: true });
+
+    document.addEventListener("fullscreenchange", () => {
+        if (!document.fullscreenElement) requestMobileFullscreen();
+    });
 }
 
 export function createJoystick() {

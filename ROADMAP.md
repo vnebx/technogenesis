@@ -1,11 +1,11 @@
 ## Base Game Engine
 - [x] Remove less than 100% zoom ajustability in the browser
-- [ ] Make a fancy loading screen when entering the game that blocks input until done
-- [ ] Make a consistency with button and joystick colors on every platform
+- [x] Make a consistency with button and joystick colors on every platform
 
-## Misc
+## Misc (non important work)
 - [ ] Polish the menu interfaces to look perfect
 - [ ] Make the menu interfaces only display one page at a time and adapt it for fullscreen mobile
+- [ ] Make a fancy loading screen when entering the game that blocks input until done
 
 ## Gameplay
 - [ ] Make the tree generation a lot more dense

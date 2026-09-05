@@ -9,7 +9,7 @@
 
 ## Gameplay
 - [x] Make the tree generation a lot more dense
-- [ ] Implement a basic shadow system (has to be changed to a better one in the future)
+- [x] Implement a basic shadow system (has to be changed to a better one in the future)
 - [ ] Add rivers that go from a mountain to a sea
 - [ ] Make trees dont spawn on top of water of any kind
 - [ ] Add seas that go around continents

@@ -35,6 +35,7 @@ export function createTileElement(col, row, type, zIndex = "0") {
 function removeTreeShadow(key) {
     const entry = state.treeShadowEls.get(key);
     if (entry) {
+        if (entry.shade) entry.shade.remove();
         entry.el.remove();
         state.treeShadowEls.delete(key);
     }
@@ -94,8 +95,57 @@ function createTreeShadow(treeOrigin) {
         `skewX(${CONFIG.treeShadowSkewDeg}deg) ` +
         `scale(${CONFIG.treeShadowScaleX}, ${CONFIG.treeShadowScaleY})`;
     state.worldEl.appendChild(el);
+
+    // The tree's own side shading: a BLOCKY, pixel-art gradient of solid dark
+    // bands across the right side of the trunk and leaves, matching the
+    // direction the ground shadow falls (light from the left). Each band is a
+    // flat color with a hard edge — no smooth blending. Masked with the tree's
+    // real sprites so it darkens only the tree itself (no halo in leaf gaps).
+    const shade = document.createElement("div");
+    shade.className = "tree-shade";
+    shade.style.position = "absolute";
+    shade.style.pointerEvents = "none";
+    shade.style.zIndex = "4";
+    shade.style.left = `${startCol * tw}px`;
+    shade.style.top = `${startRow * tw}px`;
+    shade.style.width = `${tw * 3}px`;
+    shade.style.height = `${tw * 4}px`;
+    // Five stepped bands (~32px each): darkest on the right edge, fading to
+    // untouched toward the middle, so the trunk (center column) gets shaded too.
+    shade.style.background =
+        "linear-gradient(to left, " +
+        "rgba(0,0,0,0.45) 0%, rgba(0,0,0,0.45) 16.6%, " +
+        "rgba(0,0,0,0.36) 16.6%, rgba(0,0,0,0.36) 33.3%, " +
+        "rgba(0,0,0,0.26) 33.3%, rgba(0,0,0,0.26) 50%, " +
+        "rgba(0,0,0,0.16) 50%, rgba(0,0,0,0.16) 66.6%, " +
+        "rgba(0,0,0,0.08) 66.6%, rgba(0,0,0,0.08) 83.3%, " +
+        "rgba(0,0,0,0) 83.3%)";
+
+    const urls = [];
+    const positions = [];
+    const sizes = [];
+    const sbleed = 1;
+    for (let row = 0; row < 4; row++) {
+        for (let col = 0; col < 3; col++) {
+            const treeType = getTreeTile(startCol + col, startRow + row, state.seed);
+            if (!treeType) continue;
+            urls.push(`url(assets/tiles/${treeType}.png)`);
+            positions.push(`${col * tw - sbleed / 2}px ${row * tw - sbleed / 2}px`);
+            sizes.push(`${tw + sbleed}px ${tw + sbleed}px`);
+        }
+    }
+    shade.style.maskImage = urls.join(",");
+    shade.style.maskPosition = positions.join(",");
+    shade.style.maskSize = sizes.join(",");
+    shade.style.maskRepeat = "no-repeat";
+    shade.style.webkitMaskImage = urls.join(",");
+    shade.style.webkitMaskPosition = positions.join(",");
+    shade.style.webkitMaskSize = sizes.join(",");
+    shade.style.webkitMaskRepeat = "no-repeat";
+    state.worldEl.appendChild(shade);
+
     // baseCol/baseRow = the trunk's bottom tile, used to cull the shadow with the view
-    state.treeShadowEls.set(key, { el, baseCol: treeOrigin.col, baseRow: treeOrigin.row - 1 });
+    state.treeShadowEls.set(key, { el, shade, baseCol: treeOrigin.col, baseRow: treeOrigin.row - 1 });
 }
 
 function ensureTile(col, row) {
@@ -153,6 +203,7 @@ export function updateVisibleTiles() {
 
     for (const [key, entry] of state.treeShadowEls) {
         if (!viewKey(entry.baseCol, entry.baseRow)) {
+            if (entry.shade) entry.shade.remove();
             entry.el.remove();
             state.treeShadowEls.delete(key);
         }
@@ -250,7 +301,10 @@ export function applySeed(newSeed) {
         if (entry.overlay) entry.overlay.remove();
     }
     state.tileElements.clear();
-    for (const entry of state.treeShadowEls.values()) entry.el.remove();
+    for (const entry of state.treeShadowEls.values()) {
+        if (entry.shade) entry.shade.remove();
+        entry.el.remove();
+    }
     state.treeShadowEls.clear();
     if (state.seed.length) {
         updateVisibleTiles();

@@ -18,15 +18,16 @@ function createRng(seedValues, cx, cy) {
 // ---------------------------------------------------------------------------
 // Continents, oceans & inland seas — a deterministic continent-base world.
 // Continent centers sit on a square lattice with `CONTINENT_SPACING` tiles
-// between every two centers. Each continent is a land mass about
-// `CONTINENT_SIZE` tiles across, so straight-line water between two neighbours
-// is ~`CONTINENT_SPACING - CONTINENT_SIZE` tiles wide. This "~5k of continent,
+// between every two centers. Each continent is an irregular landmass roughly
+// `CONTINENT_SIZE` tiles across (built from overlapping anchor blobs — never a
+// perfect circle), so straight-line water between two neighbours is ~
+// `CONTINENT_SPACING - CONTINENT_SIZE` tiles wide. This "~5k of continent,
 // ~5k of sea" pattern repeats forever in every direction, giving an infinite
 // world of continents scattered across the ocean.
 // Centers get a small random warp (`CENTER_WARP`) so it is not a perfect grid,
-// and a fine `INLAND_SPACING` field softens coasts and carves small inland seas
-// and lakes that never dwarf the continent around them.
-// Tiles with total height below `SEA_LEVEL` are water.
+// each continent has its own elongation axis, and a fine `INLAND_SPACING` field
+// softens coasts and carves small inland seas and lakes that never dwarf the
+// continent around them. Tiles with total height below `SEA_LEVEL` are water.
 // ---------------------------------------------------------------------------
 
 const heightCache = new Map();
@@ -90,20 +91,74 @@ function continentInlandSea(hcx, hcy, seed) {
     return sea;
 }
 
+// ---------------------------------------------------------------------------
+// A continent's silhouette. Instead of a plain disc, each continent is built
+// from several overlapping "anchor" blobs: a big central core plus a few arms
+// placed at random offsets with random sizes. The coastline is the contour of
+// the summed falloffs, so continents come out as irregular, roughly-5k-wide
+// landmasses with bays, peninsulas and island arms — never perfect circles.
+// A per-continent elongation axis stretches some continents long and skinny
+// (Chile-like) and squashes others. Everything is cached and deterministic.
+// ---------------------------------------------------------------------------
+function continentAnchorSet(hcx, hcy, seed) {
+    const key = `anch|${seed.join(",")}|${hcx},${hcy}`;
+    if (heightCache.has(key)) return heightCache.get(key);
+    const base = CONFIG.CONTINENT_SIZE / 2;
+    const rng = createRng(seed, hcx * 10007 + 29, hcy * 10007 + 31);
+
+    const eAngle = rng() * Math.PI * 2;
+    const eLen = 1 + rng() * (CONFIG.CONTINENT_ELONGATION ?? 0.35);
+
+    const anchors = [];
+    // Central core: guarantees the middle of the continent is always solid land,
+    // which keeps the spawn, inland seas and river sources safely in a core.
+    anchors.push({ x: 0, y: 0, r: base * (0.55 + rng() * 0.25) });
+    const arms = 5 + Math.floor(rng() * 4); // 5..8 irregular arms
+    for (let i = 0; i < arms; i++) {
+        const ang = rng() * Math.PI * 2;
+        const dist = base * (0.28 + rng() * 0.36);
+        const r = base * (0.36 + rng() * 0.3);
+        anchors.push({ x: Math.cos(ang) * dist, y: Math.sin(ang) * dist, r });
+    }
+
+    const shape = {
+        cos: Math.cos(eAngle),
+        sin: Math.sin(eAngle),
+        eLen,
+        anchors,
+    };
+    heightCache.set(key, shape);
+    return shape;
+}
+
 function getHeight(col, row, seed) {
     const S = CONFIG.CONTINENT_SPACING;
     const hcx = Math.round(col / S);
     const hcy = Math.round(row / S);
     const center = continentCenter(hcx, hcy, seed);
+    const shape = continentAnchorSet(hcx, hcy, seed);
 
-    // Continental plateau: 1x `CONTINENT_WEIGHT` at the middle, falling linearly
-    // to zero exactly at the `CONTINENT_SIZE`/2 radius, then negative (ocean).
-    const radius = CONFIG.CONTINENT_SIZE / 2;
-    const landForm = CONFIG.CONTINENT_WEIGHT * (1 - Math.hypot(col - center.x, row - center.y) / radius);
+    // Rotate to the continent's elongation frame, squashing the perpendicular
+    // axis so some continents come out stretched along `eAngle`.
+    const cx = col - center.x;
+    const cy = row - center.y;
+    const rx = cx * shape.cos + cy * shape.sin;
+    const ry = (-cx * shape.sin + cy * shape.cos) / shape.eLen;
+
+    // Landiness: sum of overlapping blob falloffs (≈2..4 deep inside the core,
+    // dropping to 0 in open ocean). The coast is where the sum crosses ~1.
+    let landiness = 0;
+    for (const a of shape.anchors) {
+        const dx = rx - a.x;
+        const dy = ry - a.y;
+        const d = Math.hypot(dx, dy);
+        if (d < a.r) landiness += 1 - d / a.r;
+    }
+    let h = CONFIG.CONTINENT_WEIGHT * (landiness - 1);
 
     // Inland detail: softens coasts and carves small inland seas/lakes.
     const inland = sampleField(col, row, seed, 1000003, CONFIG.INLAND_SPACING);
-    let h = landForm + (inland - 0.5) * CONFIG.INLAND_WEIGHT;
+    h += (inland - 0.5) * CONFIG.INLAND_WEIGHT;
 
     // An optional enclosed inland sea: sinks the whole ellipse below sea level.
     // The spawn continent never gets one, so a river or lake can't swallow it.

@@ -46,6 +46,9 @@ export const CONFIG = {
     CENTER_WARP: 800,
     INLAND_SPACING: 48,
     INLAND_WEIGHT: 0.3,
+    // How far continents can stretch along their random elongation axis
+    // (1 = round-ish blobs, larger = long skinny continents like Chile).
+    CONTINENT_ELONGATION: 0.35,
     // About this fraction of continents hide a small enclosed inland sea/lake
     // (a shallow oval ellipse well inside the landmass, so it never gets close
     // to the coast or dwarfs the continent around it).

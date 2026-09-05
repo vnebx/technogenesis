@@ -128,7 +128,8 @@ export const state = {
     lastViewTransform: "",
     scaleX: 1,
     scaleY: 1,
-    // Temporary debug zoom: 1 = normal, <1 = zoomed out (more of the world).
+    // Temporary debug zoom (linear slider): 1 = normal, <0 = mirrored zoom-out
+    // (the world flips and keeps zooming out linearly down to -2 = -200%).
     zoom: 1,
     cameraX: 0,
     cameraY: 0,
@@ -164,6 +165,7 @@ export const state = {
     preloadedCharacters: new Set(),
     tileElements: new Map(),
     treeShadowEls: new Map(),
+    coarseTiles: new Map(),
     tileColors: {},
     spriteDataUrls: new Map(),
     remotePlayers: new Map(),

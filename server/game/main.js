@@ -61,8 +61,12 @@ function createHud() {
     updateCoords();
 }
 
-// TEMPORARY debug control: a simple zoom-out slider. When moved it rescales the
-// world so more of the map is visible. Overlays (inventory, buttons) stay put.
+// TEMPORARY debug control: a simple linear zoom slider. Moving it rescales the
+// world so more of the map is visible. It runs from 100% (normal) down through
+// 0% and all the way to -200% (negative zoom mirrors the world, like a flipped
+// map, and keeps "zooming out" linearly past zero). Below ~30% it switches to
+// coarse-block rendering (one element per NxN tiles) so the node count stays
+// bounded at any depth. Overlays (inventory, buttons) stay put.
 function createZoomSlider() {
     const wrap = document.createElement("div");
     wrap.style.cssText =
@@ -76,14 +80,14 @@ function createZoomSlider() {
 
     const slider = document.createElement("input");
     slider.type = "range";
-    slider.min = "0.3";
+    slider.min = "-2";
     slider.max = "1";
-    slider.step = "0.05";
+    slider.step = "0.01";
     slider.value = "1";
     slider.style.cssText = "width:140px;accent-color:#79c0ff;";
 
     const value = document.createElement("span");
-    value.style.cssText = "color:#fff;font-family:'Silkscreen',monospace;font-size:12px;min-width:36px;text-align:right;";
+    value.style.cssText = "color:#fff;font-family:'Silkscreen',monospace;font-size:12px;min-width:52px;text-align:right;";
     value.textContent = "100%";
 
     slider.addEventListener("input", () => {
@@ -142,10 +146,14 @@ function applyCanvasTransform() {
     const zoom = window.devicePixelRatio / baseline;
     const zoomedOut = baseline > 0 && zoom > 0 && zoom < 1;
 
-    // Temporary debug zoom (0..1): the world is laid out at a larger logical
+    // Temporary debug zoom (-2..1): the world is laid out at a larger logical
     // size and the viewport is scaled down about its top-left corner, so more
-    // tiles are visible while every overlay stays full-size.
+    // tiles are visible while every overlay stays full-size. Negative zoom uses
+    // its absolute value for the layout size and mirrors the viewport with a
+    // translate so the world keeps filling the screen (flipped like a mirror).
+    // The slider is linear: 100% = 1, 0% = the zoom-out floor, -200% = -2.
     const viewScale = state.zoom ?? 1;
+    const ms = Math.max(0.002, Math.abs(viewScale));
 
     let gw = newW;
     let gh = newH;
@@ -156,8 +164,8 @@ function applyCanvasTransform() {
         gh = Math.max(1, Math.round(newH * zoom));
     }
     // Zoom out further on top of the (possibly browser-adjusted) base size.
-    gw = Math.max(1, Math.round(gw / viewScale));
-    gh = Math.max(1, Math.round(gh / viewScale));
+    gw = Math.max(1, Math.round(gw / ms));
+    gh = Math.max(1, Math.round(gh / ms));
 
     if (state.GAME_W === 0 || gw !== state.GAME_W || gh !== state.GAME_H) {
         state.GAME_W = gw;
@@ -179,7 +187,15 @@ function applyCanvasTransform() {
 
     // The viewport holds the world and the player; scaling it about the top-left
     // lets the zoomed-out world fill the screen while HUD/inventory stay crisp.
-    const viewTransform = viewScale !== 1 ? `scale(${viewScale})` : "";
+    let viewTransform = "";
+    if (viewScale < 0) {
+        // Mirrored: scale by the magnitude, then flip about the screen's middle
+        // so the world's left edge lands at the right side of the screen and the
+        // whole map still fills it, exactly like a mirror image.
+        viewTransform = `translate(${Math.round(gw * ms)}px,0) scale(${-ms}, ${ms})`;
+    } else if (ms !== 1) {
+        viewTransform = `scale(${ms})`;
+    }
     if (state.viewportEl && state.lastViewTransform !== viewTransform) {
         state.lastViewTransform = viewTransform;
         state.viewportEl.style.transformOrigin = "0 0";

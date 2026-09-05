@@ -10,6 +10,115 @@ export function treeKey(origin) {
     return `${origin.col},${origin.row}`;
 }
 
+// At very low zoom, rendering one DOM node per 32px tile would spawn hundreds of
+// thousands of tiles. Instead each node from here down represents a `stride x
+// stride` block of real tiles, so the node count stays bounded no matter how far
+// out the zoom slider goes. `getCoarseStride` picks 1 for normal zoom and grows
+// the block size as you zoom out (a 1:1 block at 30%, a whole-continent view at
+// ~0.5% by using ~50x50-tile blocks).
+export function getCoarseStride(zoom) {
+    const s = Math.abs(zoom ?? 1);
+    if (s >= 0.3) return 1;
+    return Math.max(2, Math.min(64, Math.ceil(0.3 / Math.max(s, 0.001))));
+}
+
+function createCoarseTile(cx, cy, stride, type) {
+    const cell = CONFIG.tileWidth * stride;
+    const bleed = 1;
+    const tile = document.createElement("img");
+    tile.className = "tile";
+    tile.src = `assets/tiles/${type}.png`;
+    tile.style.display = "block";
+    tile.style.position = "absolute";
+    tile.style.zIndex = "0";
+    tile.style.pointerEvents = "none";
+    tile.style.width = `${cell + bleed}px`;
+    tile.style.height = `${cell + bleed}px`;
+    tile.style.top = `${cy * cell - bleed / 2}px`;
+    tile.style.left = `${cx * cell - bleed / 2}px`;
+    if ((type === "grass" || type === "water") && state.tileColors[type]) {
+        tile.style.backgroundColor = state.tileColors[type];
+    }
+    state.worldEl.appendChild(tile);
+    return tile;
+}
+
+// A block is water when the majority of its sampled tiles are water. Sampling a
+// few tiles (not all stride^2) keeps the far-zoom cost small while still showing
+// rivers and inland seas.
+function coarseType(cx, cy, stride) {
+    const startCol = cx * stride;
+    const startRow = cy * stride;
+    const n = Math.min(5, stride);
+    const step = Math.floor(stride / n) || 1;
+    let water = 0;
+    let total = 0;
+    for (let i = 0; i < n; i++) {
+        const col = startCol + i * step + Math.floor(step / 2);
+        for (let j = 0; j < n; j++) {
+            const row = startRow + j * step + Math.floor(step / 2);
+            if (getBaseTileType(col, row, state.seed) === "water") water++;
+            total++;
+        }
+    }
+    return water >= total / 2 ? "water" : "grass";
+}
+
+function clearTileElements() {
+    for (const entry of state.tileElements.values()) {
+        if (entry.base) entry.base.remove();
+        if (entry.overlay) entry.overlay.remove();
+    }
+    state.tileElements.clear();
+    for (const entry of state.treeShadowEls.values()) {
+        if (entry.shade) entry.shade.remove();
+        entry.el.remove();
+    }
+    state.treeShadowEls.clear();
+}
+
+function clearCoarseTiles() {
+    for (const el of state.coarseTiles.values()) el.remove();
+    state.coarseTiles.clear();
+}
+
+function updateCoarseTiles(stride) {
+    clearTileElements();
+    const cell = CONFIG.tileWidth * stride;
+    const createMargin = 3;
+    const keepMargin = 8;
+    const startCx = Math.floor(state.cameraX / cell) - createMargin;
+    const endCx = Math.ceil((state.cameraX + state.GAME_W) / cell) + createMargin;
+    const startCy = Math.floor(state.cameraY / cell) - createMargin;
+    const endCy = Math.ceil((state.cameraY + state.GAME_H) / cell) + createMargin;
+    const keepStartCx = Math.floor(state.cameraX / cell) - keepMargin;
+    const keepEndCx = Math.ceil((state.cameraX + state.GAME_W) / cell) + keepMargin;
+    const keepStartCy = Math.floor(state.cameraY / cell) - keepMargin;
+    const keepEndCy = Math.ceil((state.cameraY + state.GAME_H) / cell) + keepMargin;
+    const inKeep = (cx, cy) => cx >= keepStartCx && cx <= keepEndCx && cy >= keepStartCy && cy <= keepEndCy;
+
+    for (let cy = startCy; cy <= endCy; cy++) {
+        for (let cx = startCx; cx <= endCx; cx++) {
+            const key = `${stride}:${cx},${cy}`;
+            if (state.coarseTiles.has(key)) continue;
+            state.coarseTiles.set(key, createCoarseTile(cx, cy, stride, coarseType(cx, cy, stride)));
+        }
+    }
+    for (const [key, el] of state.coarseTiles) {
+        const [strideStr, xy] = key.split(":");
+        if (parseInt(strideStr, 10) !== stride) {
+            el.remove();
+            state.coarseTiles.delete(key);
+            continue;
+        }
+        const [cx, cy] = xy.split(",").map(Number);
+        if (!inKeep(cx, cy)) {
+            el.remove();
+            state.coarseTiles.delete(key);
+        }
+    }
+}
+
 export function createTileElement(col, row, type, zIndex = "0") {
     const tile = document.createElement("img");
     tile.className = "tile";
@@ -169,6 +278,9 @@ function ensureTile(col, row) {
 
 export function updateVisibleTiles() {
     if (!state.seed || !state.seed.length) return;
+    const stride = getCoarseStride(state.zoom);
+    if (stride > 1) return updateCoarseTiles(stride);
+    if (state.coarseTiles.size) clearCoarseTiles();
     // createMargin: tiles rendered slightly beyond the viewport so nothing pops in at the edges
     // keepMargin: tiles kept alive further out (larger) so scrolling doesn't recreate them repeatedly
     const createMargin = 3;
@@ -307,6 +419,8 @@ export function applySeed(newSeed) {
         entry.el.remove();
     }
     state.treeShadowEls.clear();
+    for (const el of state.coarseTiles.values()) el.remove();
+    state.coarseTiles.clear();
     clearTerrainCache();
     clearTreeCache();
     if (state.seed.length) {

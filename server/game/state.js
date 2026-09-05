@@ -30,6 +30,30 @@ export const CONFIG = {
     treeShadowScaleX: 1.15,
     treeShadowScaleY: 0.5,
     treeShadowOpacity: 0.4,
+    // WORLD TERRAIN
+    // Seas and continents come from a smooth height field: tiles whose height
+    // drops below `SEA_LEVEL` are sea, so the seas naturally wrap around every
+    // island and continent. Spacing and river settings are tuned here.
+    SEA_LEVEL: 0.42,
+    CONTINENT_SPACING: 26,
+    // Rivers start on elevated land and flow down to a sea. One river remains
+    // possible per `RIVER_SPACING`-sized cell, and only where the land is
+    // elevated (see `RIVER_MIN_ELEVATION`). They get wider as they approach
+    // the coast, capped at `RIVER_MAX_LENGTH` tiles, and are `RIVER_WIDTH`
+    // tiles wide (3 = a solid 3-tile-wide water band).
+    RIVER_SPACING: 24,
+    RIVER_DENSITY: 0.8,
+    RIVER_MIN_ELEVATION: 0.1,
+    RIVER_MAX_LENGTH: 70,
+    RIVER_WIDTH: 3,
+    // Radial boost around the world origin (the spawn) so the player never
+    // starts on water. `SPAWN_HEIGHT_BOOST` is added and fades to zero at
+    // `SPAWN_BOOST_RADIUS` tiles away.
+    SPAWN_HEIGHT_BOOST: 0.9,
+    SPAWN_BOOST_RADIUS: 7,
+    // Trees keep this many tiles of clearance around their whole footprint; no
+    // water (lakes, seas, rivers) may be closer than this to any part of a tree.
+    TREE_WATER_GAP: 3,
     INVENTORY_COLS: 4,
     INVENTORY_ROWS: 6,
     MAX_STACK: 64,

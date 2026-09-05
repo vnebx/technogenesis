@@ -1,4 +1,5 @@
 import { CONFIG } from "../state.js";
+import { getBaseTileType } from "./terrain.js";
 
 // Deterministic PRNG — folds the seed array into a 32-bit state, mixes in cell
 // coords, and returns a generator yielding floats in [0, 1).
@@ -39,7 +40,28 @@ function computeCellTree(cx, cy, seed, spacing) {
     if (density < 1 && rng() >= density) {
         return null;
     }
-    return { ...cellTreeOrigin(cx, cy, rng, spacing), cx, cy };
+    const origin = cellTreeOrigin(cx, cy, rng, spacing);
+    // Trees must never sit on OR near any water (lakes, seas, rivers). Reject
+    // this tree if any water tile falls inside its footprint plus a margin.
+    if (isNearWater(origin, seed)) return null;
+    return { ...origin, cx, cy };
+}
+
+// Checks whether any water tile is within `TREE_WATER_GAP` tiles of the tree's
+// footprint (3 wide x 4 tall). `getBaseTileType` covers seas, 3-wide rivers
+// and any lake-like water.
+function isNearWater(tree, seed) {
+    const gap = CONFIG.TREE_WATER_GAP ?? 3;
+    const minCol = tree.col - 1 - gap;
+    const maxCol = tree.col + 1 + gap;
+    const minRow = tree.row - 4 - gap;
+    const maxRow = tree.row - 1 + gap;
+    for (let row = minRow; row <= maxRow; row++) {
+        for (let col = minCol; col <= maxCol; col++) {
+            if (getBaseTileType(col, row, seed) === "water") return true;
+        }
+    }
+    return false;
 }
 
 const treeCellCache = new Map();

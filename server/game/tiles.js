@@ -1,5 +1,5 @@
-import { getBaseTileType } from "./mapgen/lake.js";
-import { getTreeTile, getTreeAt } from "./mapgen/tree.js";
+import { getBaseTileType, clearTerrainCache } from "./mapgen/terrain.js";
+import { getTreeTile, getTreeAt, clearTreeCache } from "./mapgen/tree.js";
 import { CONFIG, state } from "./state.js";
 // This code has tile rendering and terrain generation logic.
 export function tileKey(col, row) {
@@ -152,10 +152,11 @@ function ensureTile(col, row) {
     const key = tileKey(col, row);
     if (state.tileElements.has(key)) return;
 
-    const baseType = getBaseTileType(col, row, state.seed, CONFIG.regionSize, CONFIG.lakeWidth, CONFIG.lakeHeight);
+    const baseType = getBaseTileType(col, row, state.seed);
     const baseTile = createTileElement(col, row, baseType, "0");
     const treeOrigin = getTreeAt(col, row, state.seed);
-    if (!treeOrigin || state.removedTrees.has(treeKey(treeOrigin))) {
+    // Trees only grow on grass — never on water or rivers.
+    if (!treeOrigin || state.removedTrees.has(treeKey(treeOrigin)) || baseType !== "grass") {
         state.tileElements.set(key, { base: baseTile });
         return;
     }
@@ -256,7 +257,7 @@ export function refreshRemovedTiles() {
                 entry.overlay = null;
             }
             removeTreeShadow(treeKey(origin));
-        } else if (!entry.overlay) {
+        } else if (!entry.overlay && getBaseTileType(col, row, state.seed) === "grass") {
             const treeType = getTreeTile(col, row, state.seed);
             const overlayZ = treeType === "oak_tree_leaves" ? "3" : "2";
             entry.overlay = createTileElement(col, row, treeType, overlayZ);
@@ -271,7 +272,7 @@ export function treeAtPlayer() {
     for (let dy = -1; dy <= 1; dy++) {
         for (let dx = -1; dx <= 1; dx++) {
             const origin = getTreeAt(px + dx, py + dy, state.seed);
-            if (origin && !state.removedTrees.has(treeKey(origin))) {
+            if (origin && !state.removedTrees.has(treeKey(origin)) && getBaseTileType(px + dx, py + dy, state.seed) === "grass") {
                 return origin;
             }
         }
@@ -306,6 +307,8 @@ export function applySeed(newSeed) {
         entry.el.remove();
     }
     state.treeShadowEls.clear();
+    clearTerrainCache();
+    clearTreeCache();
     if (state.seed.length) {
         updateVisibleTiles();
         updateCamera();

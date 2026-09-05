@@ -32,6 +32,72 @@ export function createTileElement(col, row, type, zIndex = "0") {
     return tile;
 }
 
+function removeTreeShadow(key) {
+    const entry = state.treeShadowEls.get(key);
+    if (entry) {
+        entry.el.remove();
+        state.treeShadowEls.delete(key);
+    }
+}
+
+// One shadow element per tree. All of the tree's tile sprites are assembled
+// into a single container which is blackened and warped with ONE transform about
+// the trunk base. Because the pieces live inside one element and are never
+// individually transformed, there can be no black seams between them — the
+// whole silhouette is rasterized as a continuous ground shadow (light from the
+// left, so it leans toward the right).
+function createTreeShadow(treeOrigin) {
+    const key = treeKey(treeOrigin);
+    if (state.treeShadowEls.has(key)) return;
+    const tw = CONFIG.tileWidth;
+    const startCol = treeOrigin.col - 1;
+    const startRow = treeOrigin.row - 4;
+
+    const el = document.createElement("div");
+    el.className = "tree-shadow";
+    el.style.position = "absolute";
+    el.style.pointerEvents = "none";
+    el.style.zIndex = "1";
+    el.style.left = `${startCol * tw}px`;
+    el.style.top = `${startRow * tw}px`;
+    el.style.width = `${tw * 3}px`;
+    el.style.height = `${tw * 4}px`;
+    el.style.filter = "brightness(0)";
+    el.style.opacity = String(CONFIG.treeShadowOpacity ?? 0.4);
+
+    // Reassemble the tree footprint (3 wide x 4 tall) from its real sprites,
+    // with a small bleed between pieces so nothing peaks through the seams.
+    const bleed = 2;
+    for (let row = 0; row < 4; row++) {
+        for (let col = 0; col < 3; col++) {
+            const treeType = getTreeTile(startCol + col, startRow + row, state.seed);
+            if (!treeType) continue;
+            const piece = document.createElement("img");
+            piece.src = `assets/tiles/${treeType}.png`;
+            piece.style.position = "absolute";
+            piece.style.pointerEvents = "none";
+            piece.style.width = `${tw + bleed}px`;
+            piece.style.height = `${tw + bleed}px`;
+            piece.style.left = `${col * tw - bleed / 2}px`;
+            piece.style.top = `${row * tw - bleed / 2}px`;
+            el.appendChild(piece);
+        }
+    }
+
+    // One warp about the trunk base (horizontal center of the trunk's bottom
+    // edge) so the shadow stays planted at the tree and spreads to the right.
+    const anchorX = (treeOrigin.col + 0.5) * tw;
+    const anchorY = treeOrigin.row * tw;
+    el.style.transformOrigin = `${anchorX - startCol * tw}px ${anchorY - startRow * tw}px`;
+    el.style.transform =
+        `translate(${CONFIG.treeShadowOffsetX}px, ${CONFIG.treeShadowOffsetY}px) ` +
+        `skewX(${CONFIG.treeShadowSkewDeg}deg) ` +
+        `scale(${CONFIG.treeShadowScaleX}, ${CONFIG.treeShadowScaleY})`;
+    state.worldEl.appendChild(el);
+    // baseCol/baseRow = the trunk's bottom tile, used to cull the shadow with the view
+    state.treeShadowEls.set(key, { el, baseCol: treeOrigin.col, baseRow: treeOrigin.row - 1 });
+}
+
 function ensureTile(col, row) {
     const key = tileKey(col, row);
     if (state.tileElements.has(key)) return;
@@ -44,8 +110,9 @@ function ensureTile(col, row) {
         return;
     }
     const treeType = getTreeTile(col, row, state.seed);
-    const overlayZ = treeType === "oak_tree_leaves" ? "3" : "1";
+    const overlayZ = treeType === "oak_tree_leaves" ? "3" : "2";
     const overlayTile = createTileElement(col, row, treeType, overlayZ);
+    createTreeShadow(treeOrigin);
     state.tileElements.set(key, { base: baseTile, overlay: overlayTile });
 }
 
@@ -81,6 +148,13 @@ export function updateVisibleTiles() {
             if (entry.base) entry.base.remove();
             if (entry.overlay) entry.overlay.remove();
             state.tileElements.delete(key);
+        }
+    }
+
+    for (const [key, entry] of state.treeShadowEls) {
+        if (!viewKey(entry.baseCol, entry.baseRow)) {
+            entry.el.remove();
+            state.treeShadowEls.delete(key);
         }
     }
 }
@@ -130,9 +204,10 @@ export function refreshRemovedTiles() {
                 entry.overlay.remove();
                 entry.overlay = null;
             }
+            removeTreeShadow(treeKey(origin));
         } else if (!entry.overlay) {
             const treeType = getTreeTile(col, row, state.seed);
-            const overlayZ = treeType === "oak_tree_leaves" ? "3" : "1";
+            const overlayZ = treeType === "oak_tree_leaves" ? "3" : "2";
             entry.overlay = createTileElement(col, row, treeType, overlayZ);
         }
     }
@@ -175,6 +250,8 @@ export function applySeed(newSeed) {
         if (entry.overlay) entry.overlay.remove();
     }
     state.tileElements.clear();
+    for (const entry of state.treeShadowEls.values()) entry.el.remove();
+    state.treeShadowEls.clear();
     if (state.seed.length) {
         updateVisibleTiles();
         updateCamera();

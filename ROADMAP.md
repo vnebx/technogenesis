@@ -8,7 +8,8 @@
 - [ ] Make a fancy loading screen when entering the game that blocks input until done
 
 ## Gameplay
-- [ ] Make the tree generation a lot more dense
+- [x] Make the tree generation a lot more dense
+- [ ] Implement a basic shadow system (has to be changed to a better one in the future)
 - [ ] Add rivers that go from a mountain to a sea
 - [ ] Make trees dont spawn on top of water of any kind
 - [ ] Add seas that go around continents

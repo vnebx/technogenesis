@@ -19,6 +19,17 @@ export const CONFIG = {
     //                     1 = every slot, 0.5 = half the slots stay empty.
     TREE_SPACING: 5,
     TREE_CELL_DENSITY: 1,
+    // Tree shadows are copies of the tree's own tiles re-deformed into ground
+    // shadows. The shadow is planted at the tree's trunk (zero offset so the
+    // shadow trunk starts exactly where the tree trunk starts) and the
+    // silhouette is squashed, slightly widened and gently leaned toward the
+    // right about the trunk's base (light from the left).
+    treeShadowOffsetX: 0,
+    treeShadowOffsetY: 0,
+    treeShadowSkewDeg: -22,
+    treeShadowScaleX: 1.15,
+    treeShadowScaleY: 0.5,
+    treeShadowOpacity: 0.4,
     INVENTORY_COLS: 4,
     INVENTORY_ROWS: 6,
     MAX_STACK: 64,
@@ -109,6 +120,7 @@ export const state = {
     characterFrames: {},
     preloadedCharacters: new Set(),
     tileElements: new Map(),
+    treeShadowEls: new Map(),
     tileColors: {},
     spriteDataUrls: new Map(),
     remotePlayers: new Map(),

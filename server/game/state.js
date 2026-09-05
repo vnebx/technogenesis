@@ -31,20 +31,36 @@ export const CONFIG = {
     treeShadowScaleY: 0.5,
     treeShadowOpacity: 0.4,
     // WORLD TERRAIN
-    // Seas and continents come from a smooth height field: tiles whose height
-    // drops below `SEA_LEVEL` are sea, so the seas naturally wrap around every
-    // island and continent. Spacing and river settings are tuned here.
-    SEA_LEVEL: 0.42,
-    CONTINENT_SPACING: 26,
+    // Continent-base system: continent centers on a square lattice every
+    // `CONTINENT_SPACING` tiles. Each continent is ~`CONTINENT_SIZE` tiles of
+    // land, so roughly `CONTINENT_SPACING - CONTINENT_SIZE` tiles of ocean sit
+    // between neighbours (~5k of continent, ~5k of sea) — repeating infinitely
+    // in every direction. `CENTER_WARP` jitters the centers so it's not a
+    // perfect grid; the `INLAND_SPACING`/`INLAND_WEIGHT` field adds mild relief
+    // and softly indents the coasts, while enclosed seas/lakes come from the
+    // `CONTINENT_SEA_CHANCE` rolls below.
+    SEA_LEVEL: 0.0,
+    CONTINENT_SPACING: 10000,
+    CONTINENT_SIZE: 5000,
+    CONTINENT_WEIGHT: 1.2,
+    CENTER_WARP: 800,
+    INLAND_SPACING: 48,
+    INLAND_WEIGHT: 0.3,
+    // About this fraction of continents hide a small enclosed inland sea/lake
+    // (a shallow oval ellipse well inside the landmass, so it never gets close
+    // to the coast or dwarfs the continent around it).
+    CONTINENT_SEA_CHANCE: 0.35,
+    INLAND_SEA_RADIUS_FRAC: 0.16,
+    INLAND_SEA_OFFSET_FRAC: 0.35,
     // Rivers start on elevated land and flow down to a sea. One river remains
     // possible per `RIVER_SPACING`-sized cell, and only where the land is
     // elevated (see `RIVER_MIN_ELEVATION`). They get wider as they approach
     // the coast, capped at `RIVER_MAX_LENGTH` tiles, and are `RIVER_WIDTH`
     // tiles wide (3 = a solid 3-tile-wide water band).
-    RIVER_SPACING: 24,
+    RIVER_SPACING: 90,
     RIVER_DENSITY: 0.8,
     RIVER_MIN_ELEVATION: 0.1,
-    RIVER_MAX_LENGTH: 70,
+    RIVER_MAX_LENGTH: 300,
     RIVER_WIDTH: 3,
     // Radial boost around the world origin (the spawn) so the player never
     // starts on water. `SPAWN_HEIGHT_BOOST` is added and fades to zero at
@@ -59,7 +75,7 @@ export const CONFIG = {
     MAX_STACK: 64,
     INVENTORY_TEXT_SCALE: 0.9,
     ITEM_IMAGE_PATH: "assets/ui/items/",
-    moveSpeed: 128,
+    moveSpeed: 128*128,
     animInterval: 180,
     useDuration: 500,
     useCooldown: 500,
@@ -109,8 +125,11 @@ export const state = {
     GAME_H: 0,
     baselineDPR: 1,
     lastAppTransform: "",
+    lastViewTransform: "",
     scaleX: 1,
     scaleY: 1,
+    // Temporary debug zoom: 1 = normal, <1 = zoomed out (more of the world).
+    zoom: 1,
     cameraX: 0,
     cameraY: 0,
     lastWorldTransform: null,

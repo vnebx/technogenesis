@@ -16,39 +16,103 @@ function createRng(seedValues, cx, cy) {
 }
 
 // ---------------------------------------------------------------------------
-// Continents & seas — a smooth deterministic height field.
-// The world is divided into cells of `CONTINENT_SPACING`; each cell corner gets
-// a random height and tiles are bilinearly interpolated. Tiles below `SEA_LEVEL`
-// are sea, so the result is a world of islands and continents where the seas
-// naturally wrap around every piece of land.
+// Continents, oceans & inland seas — a deterministic continent-base world.
+// Continent centers sit on a square lattice with `CONTINENT_SPACING` tiles
+// between every two centers. Each continent is a land mass about
+// `CONTINENT_SIZE` tiles across, so straight-line water between two neighbours
+// is ~`CONTINENT_SPACING - CONTINENT_SIZE` tiles wide. This "~5k of continent,
+// ~5k of sea" pattern repeats forever in every direction, giving an infinite
+// world of continents scattered across the ocean.
+// Centers get a small random warp (`CENTER_WARP`) so it is not a perfect grid,
+// and a fine `INLAND_SPACING` field softens coasts and carves small inland seas
+// and lakes that never dwarf the continent around them.
+// Tiles with total height below `SEA_LEVEL` are water.
 // ---------------------------------------------------------------------------
 
 const heightCache = new Map();
 
-function heightPointKey(seed, cx, cy) {
-    return `${seed.join(",")}|${cx},${cy}`;
-}
-
-function getHeightPoint(cx, cy, seed) {
-    const key = heightPointKey(seed, cx, cy);
+// One lattice corner's stored value. `salt` keeps independent fields distinct.
+function getHeightPoint(cx, cy, seed, salt) {
+    const key = `${seed.join(",")}|${salt}|${cx},${cy}`;
     if (heightCache.has(key)) return heightCache.get(key);
-    const rng = createRng(seed, cx, cy);
+    const rng = createRng(seed, cx + salt, cy + salt);
     const value = rng();
     heightCache.set(key, value);
     return value;
 }
 
-function getHeight(col, row, seed) {
-    const spacing = CONFIG.CONTINENT_SPACING;
+// Bilinear interpolation of one square lattice of cell-corner heights.
+function sampleField(col, row, seed, salt, spacing) {
     const c0 = Math.floor(col / spacing);
     const r0 = Math.floor(row / spacing);
     const fx = (col - c0 * spacing) / spacing;
     const fy = (row - r0 * spacing) / spacing;
-    const h00 = getHeightPoint(c0, r0, seed);
-    const h10 = getHeightPoint(c0 + 1, r0, seed);
-    const h01 = getHeightPoint(c0, r0 + 1, seed);
-    const h11 = getHeightPoint(c0 + 1, r0 + 1, seed);
-    let h = h00 + (h10 - h00) * fx + (h01 - h00) * fy + (h00 - h10 - h01 + h11) * fx * fy;
+    const h00 = getHeightPoint(c0, r0, seed, salt);
+    const h10 = getHeightPoint(c0 + 1, r0, seed, salt);
+    const h01 = getHeightPoint(c0, r0 + 1, seed, salt);
+    const h11 = getHeightPoint(c0 + 1, r0 + 1, seed, salt);
+    return h00 + (h10 - h00) * fx + (h01 - h00) * fy + (h00 - h10 - h01 + h11) * fx * fy;
+}
+
+// The center of the continent that owns lattice cell (hcx, hcy), deterministically
+// warped by up to `CENTER_WARP` tiles so continents are not perfectly aligned.
+function continentCenter(hcx, hcy, seed) {
+    const key = `center|${seed.join(",")}|${hcx},${hcy}`;
+    if (heightCache.has(key)) return heightCache.get(key);
+    const warp = CONFIG.CENTER_WARP ?? 0;
+    const S = CONFIG.CONTINENT_SPACING;
+    const wx = warp ? (createRng(seed, hcx * 31 + 7, hcy * 31 + 7)() - 0.5) * 2 * warp : 0;
+    const wy = warp ? (createRng(seed, hcx * 31 + 13, hcy * 31 + 13)() - 0.5) * 2 * warp : 0;
+    const center = { x: hcx * S + wx, y: hcy * S + wy };
+    heightCache.set(key, center);
+    return center;
+}
+
+// Optional inland sea for a continent: with `CONTINENT_SEA_CHANCE` probability a
+// continent hides a small sea/lake completely enclosed inside it. It sits well
+// inside the landmass (offset + radius bounded well below the coast) so it never
+// dwarfs the continent, and it ends up surrounded by a ring of land and beach.
+function continentInlandSea(hcx, hcy, seed) {
+    const key = `sea|${seed.join(",")}|${hcx},${hcy}`;
+    if (heightCache.has(key)) return heightCache.get(key);
+    const rng = createRng(seed, hcx * 131 + 17, hcy * 131 + 19);
+    let sea = null;
+    if ((CONFIG.CONTINENT_SEA_CHANCE ?? 0) > 0 && rng() < CONFIG.CONTINENT_SEA_CHANCE) {
+        const S = CONFIG.CONTINENT_SPACING;
+        const base = CONFIG.CONTINENT_SIZE / 2;
+        const ox = (rng() - 0.5) * 2 * CONFIG.INLAND_SEA_OFFSET_FRAC * base;
+        const oy = (rng() - 0.5) * 2 * CONFIG.INLAND_SEA_OFFSET_FRAC * base;
+        const rx = base * CONFIG.INLAND_SEA_RADIUS_FRAC * (0.6 + rng() * 0.8);
+        const ry = base * CONFIG.INLAND_SEA_RADIUS_FRAC * (0.6 + rng() * 0.8);
+        sea = { x: hcx * S + ox, y: hcy * S + oy, rx, ry };
+    }
+    heightCache.set(key, sea);
+    return sea;
+}
+
+function getHeight(col, row, seed) {
+    const S = CONFIG.CONTINENT_SPACING;
+    const hcx = Math.round(col / S);
+    const hcy = Math.round(row / S);
+    const center = continentCenter(hcx, hcy, seed);
+
+    // Continental plateau: 1x `CONTINENT_WEIGHT` at the middle, falling linearly
+    // to zero exactly at the `CONTINENT_SIZE`/2 radius, then negative (ocean).
+    const radius = CONFIG.CONTINENT_SIZE / 2;
+    const landForm = CONFIG.CONTINENT_WEIGHT * (1 - Math.hypot(col - center.x, row - center.y) / radius);
+
+    // Inland detail: softens coasts and carves small inland seas/lakes.
+    const inland = sampleField(col, row, seed, 1000003, CONFIG.INLAND_SPACING);
+    let h = landForm + (inland - 0.5) * CONFIG.INLAND_WEIGHT;
+
+    // An optional enclosed inland sea: sinks the whole ellipse below sea level.
+    // The spawn continent never gets one, so a river or lake can't swallow it.
+    const sea = (hcx === 0 && hcy === 0) ? null : continentInlandSea(hcx, hcy, seed);
+    if (sea) {
+        const ex = (col - sea.x) / sea.rx;
+        const ey = (row - sea.y) / sea.ry;
+        if (ex * ex + ey * ey < 1) h -= 2;
+    }
 
     // Guarantee the spawn area (around the origin) is always land: raise the
     // height near (0,0) with a radial boost that fades out to `SPAWN_BOOST_RADIUS`.

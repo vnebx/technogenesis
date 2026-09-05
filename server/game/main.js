@@ -61,6 +61,44 @@ function createHud() {
     updateCoords();
 }
 
+// TEMPORARY debug control: a simple zoom-out slider. When moved it rescales the
+// world so more of the map is visible. Overlays (inventory, buttons) stay put.
+function createZoomSlider() {
+    const wrap = document.createElement("div");
+    wrap.style.cssText =
+        "position:fixed;top:12px;left:50%;transform:translateX(-50%);z-index:900;" +
+        "background:rgba(0,0,0,0.55);padding:6px 10px;border-radius:6px;" +
+        "display:flex;align-items:center;gap:8px;";
+
+    const label = document.createElement("span");
+    label.textContent = "Zoom";
+    label.style.cssText = "color:#fff;font-family:'Silkscreen',monospace;font-size:12px;";
+
+    const slider = document.createElement("input");
+    slider.type = "range";
+    slider.min = "0.3";
+    slider.max = "1";
+    slider.step = "0.05";
+    slider.value = "1";
+    slider.style.cssText = "width:140px;accent-color:#79c0ff;";
+
+    const value = document.createElement("span");
+    value.style.cssText = "color:#fff;font-family:'Silkscreen',monospace;font-size:12px;min-width:36px;text-align:right;";
+    value.textContent = "100%";
+
+    slider.addEventListener("input", () => {
+        state.zoom = parseFloat(slider.value);
+        value.textContent = `${Math.round(state.zoom * 100)}%`;
+        applyCanvasTransform();
+        updateCamera();
+    });
+
+    wrap.appendChild(label);
+    wrap.appendChild(slider);
+    wrap.appendChild(value);
+    document.body.appendChild(wrap);
+}
+
 function updateCoords() {
     const x = Math.floor(state.playerWorldX / CONFIG.tileWidth);
     const y = Math.floor(state.playerWorldY / CONFIG.tileWidth);
@@ -104,6 +142,11 @@ function applyCanvasTransform() {
     const zoom = window.devicePixelRatio / baseline;
     const zoomedOut = baseline > 0 && zoom > 0 && zoom < 1;
 
+    // Temporary debug zoom (0..1): the world is laid out at a larger logical
+    // size and the viewport is scaled down about its top-left corner, so more
+    // tiles are visible while every overlay stays full-size.
+    const viewScale = state.zoom ?? 1;
+
     let gw = newW;
     let gh = newH;
     if (zoomedOut) {
@@ -112,6 +155,9 @@ function applyCanvasTransform() {
         gw = Math.max(1, Math.round(newW * zoom));
         gh = Math.max(1, Math.round(newH * zoom));
     }
+    // Zoom out further on top of the (possibly browser-adjusted) base size.
+    gw = Math.max(1, Math.round(gw / viewScale));
+    gh = Math.max(1, Math.round(gh / viewScale));
 
     if (state.GAME_W === 0 || gw !== state.GAME_W || gh !== state.GAME_H) {
         state.GAME_W = gw;
@@ -129,6 +175,15 @@ function applyCanvasTransform() {
         state.lastAppTransform = appTransform;
         state.appEl.style.transformOrigin = "0 0";
         state.appEl.style.transform = appTransform;
+    }
+
+    // The viewport holds the world and the player; scaling it about the top-left
+    // lets the zoomed-out world fill the screen while HUD/inventory stay crisp.
+    const viewTransform = viewScale !== 1 ? `scale(${viewScale})` : "";
+    if (state.viewportEl && state.lastViewTransform !== viewTransform) {
+        state.lastViewTransform = viewTransform;
+        state.viewportEl.style.transformOrigin = "0 0";
+        state.viewportEl.style.transform = viewTransform;
     }
 
     state.scaleX = 1;
@@ -385,6 +440,7 @@ async function init() {
     state.viewportEl.appendChild(state.worldEl);
 
     createHud();
+    createZoomSlider();
     createInventoryUI(settings);
     createPlayer();
     applyCanvasTransform();
